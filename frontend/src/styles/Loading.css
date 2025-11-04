@@ -1,0 +1,83 @@
+.loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, rgba(36, 105, 179, 0.7) 0%, rgba(111, 182, 67, 0.7) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.loading-spinner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 30px;
+  background: white;
+  padding: 50px 40px;
+  border-radius: 20px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  animation: popIn 0.4s ease-out;
+}
+
+@keyframes popIn {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.spinner {
+  width: 80px;
+  height: 80px;
+  border: 6px solid rgba(36, 105, 179, 0.2);
+  border-top: 6px solid #2469B3;
+  border-right: 6px solid #6FB643;
+  border-radius: 50%;
+  animation: spin 1.2s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.loading-spinner p {
+  color: #333;
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.loading-spinner.error {
+  background: #fee;
+  box-shadow: 0 20px 60px rgba(204, 51, 51, 0.3);
+}
+
+.loading-spinner.error p {
+  color: #c33;
+}
+
+.spinner.error {
+  border-color: rgba(204, 51, 51, 0.2);
+  border-top-color: #c33;
+  border-right-color: #ff6666;
+}

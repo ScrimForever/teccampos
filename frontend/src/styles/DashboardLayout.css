@@ -1,0 +1,36 @@
+/* Dashboard Page Content - 80% Width */
+.dashboard-page-content {
+  width: 80%;
+  margin: 0 auto;
+  animation: fadeIn 0.3s ease-in;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Responsive Breakpoints */
+@media (max-width: 1400px) {
+  .dashboard-page-content {
+    width: 85%;
+  }
+}
+
+@media (max-width: 1200px) {
+  .dashboard-page-content {
+    width: 90%;
+  }
+}
+
+@media (max-width: 768px) {
+  .dashboard-page-content {
+    width: 100%;
+  }
+}
