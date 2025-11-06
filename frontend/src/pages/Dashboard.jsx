@@ -105,7 +105,6 @@ function Dashboard() {
   const [showMeioAcaoModal, setShowMeioAcaoModal] = useState(false)
   const [showPeriodicidadeModal, setShowPeriodicidadeModal] = useState(false)
   const [showNovaMetricaModal, setShowNovaMetricaModal] = useState(false)
-  const [showPraticaDetailModal, setShowPraticaDetailModal] = useState(false)
   const [selectedPratica, setSelectedPratica] = useState(null)
   const [selectedPraticaId, setSelectedPraticaId] = useState(null)
   const [novaParticaForm, setNovaParticaForm] = useState({
@@ -1879,267 +1878,261 @@ function Dashboard() {
                 )}
 
                 {currentAtividadesSubmenu === 'praticas-chaves' && (
-                  <div className="praticas-sidebar-only">
-                    <div className="praticas-sidebar-header">
-                      <h3>Práticas Chaves</h3>
-                      <button
-                        className="btn btn-primary btn-small"
-                        onClick={() => setShowNovaParticaModal(true)}
-                        title="Adicionar nova prática"
-                      >
-                        ➕
-                      </button>
+                  <div className="praticas-container">
+                    <div className="praticas-sidebar-only">
+                      <div className="praticas-sidebar-header">
+                        <h3>Práticas Chaves</h3>
+                        <button
+                          className="btn btn-primary btn-small"
+                          onClick={() => setShowNovaParticaModal(true)}
+                          title="Adicionar nova prática"
+                        >
+                          ➕
+                        </button>
+                      </div>
+                      {loadingPraticas ? (
+                        <div className="praticas-sidebar-loading">
+                          <p>⏳ Carregando...</p>
+                        </div>
+                      ) : errorPraticas ? (
+                        <div className="praticas-sidebar-error">
+                          <p>❌ Erro ao carregar</p>
+                        </div>
+                      ) : praticasChaves.length > 0 ? (
+                        <div className="praticas-sidebar-list">
+                          {praticasChaves.map((pratica, index) => (
+                            <button
+                              key={pratica.id || `pratica-${index}`}
+                              className={`pratica-sidebar-item ${selectedPraticaId === pratica.id ? 'active' : ''}`}
+                              onClick={() => {
+                                const normalizedPratica = normalizePratica(pratica)
+                                console.log('📋 Prática selecionada (original):', pratica)
+                                console.log('📋 Prática normalizada:', normalizedPratica)
+                                console.log('📋 Todas as chaves:', Object.keys(normalizedPratica))
+                                setSelectedPraticaId(normalizedPratica.id)
+                                setSelectedPratica(normalizedPratica)
+                              }}
+                            >
+                              <span className="pratica-sidebar-icon">{pratica.icone || '🎯'}</span>
+                              <span className="pratica-sidebar-title">{pratica.titulo}</span>
+                              <span className={`pratica-sidebar-status status-${pratica.status}`}>{pratica.status}</span>
+                            </button>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="praticas-sidebar-empty">
+                          <p>Nenhuma prática cadastrada</p>
+                        </div>
+                      )}
                     </div>
-                    {loadingPraticas ? (
-                      <div className="praticas-sidebar-loading">
-                        <p>⏳ Carregando...</p>
-                      </div>
-                    ) : errorPraticas ? (
-                      <div className="praticas-sidebar-error">
-                        <p>❌ Erro ao carregar</p>
-                      </div>
-                    ) : praticasChaves.length > 0 ? (
-                      <div className="praticas-sidebar-list">
-                        {praticasChaves.map((pratica, index) => (
+
+                    {selectedPratica && (
+                      <div className="praticas-detail-panel">
+                        <div className="detail-panel-header">
+                          <h2>Visualizar Prática Chave</h2>
                           <button
-                            key={pratica.id || `pratica-${index}`}
-                            className={`pratica-sidebar-item ${selectedPraticaId === pratica.id ? 'active' : ''}`}
+                            className="detail-panel-close"
                             onClick={() => {
-                              const normalizedPratica = normalizePratica(pratica)
-                              console.log('📋 Prática selecionada (original):', pratica)
-                              console.log('📋 Prática normalizada:', normalizedPratica)
-                              console.log('📋 Todas as chaves:', Object.keys(normalizedPratica))
-                              setSelectedPraticaId(normalizedPratica.id)
-                              setSelectedPratica(normalizedPratica)
-                              setShowPraticaDetailModal(true)
+                              setSelectedPratica(null)
+                              setSelectedPraticaId(null)
                             }}
+                            title="Fechar painel"
                           >
-                            <span className="pratica-sidebar-icon">{pratica.icone || '🎯'}</span>
-                            <span className="pratica-sidebar-title">{pratica.titulo}</span>
-                            <span className={`pratica-sidebar-status status-${pratica.status}`}>{pratica.status}</span>
+                            ✕
                           </button>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="praticas-sidebar-empty">
-                        <p>Nenhuma prática cadastrada</p>
+                        </div>
+
+                        <div className="detail-panel-body">
+                          {/* Prática Chave */}
+                          <div className="form-group">
+                            <label htmlFor="view-pratica-chave">Prática Chave</label>
+                            <input
+                              id="view-pratica-chave"
+                              type="text"
+                              className="form-input"
+                              value={selectedPratica.praticaChave || selectedPratica.titulo || ''}
+                              disabled
+                            />
+                          </div>
+
+                          {/* Objetivos */}
+                          <div className="form-group">
+                            <label htmlFor="view-objetivos">Objetivos</label>
+                            <textarea
+                              id="view-objetivos"
+                              className="form-input form-textarea"
+                              value={selectedPratica.objetivos || ''}
+                              disabled
+                              rows="3"
+                            />
+                          </div>
+
+                          {/* Meio/Ação */}
+                          <div className="form-group">
+                            <label>Meio/Ação</label>
+                            <div className="items-cards-list">
+                              {selectedPratica.meioacoes && selectedPratica.meioacoes.length > 0 ? (
+                                selectedPratica.meioacoes.map((item) => (
+                                  <div key={item.id} className="item-card">
+                                    <div className="item-card-content">
+                                      <div style={{ marginBottom: '8px' }}>
+                                        <strong style={{ color: 'var(--primary)' }}>Meio:</strong> {item.meio}
+                                      </div>
+                                      <div>
+                                        <strong style={{ color: 'var(--primary)' }}>Ação:</strong><br/>
+                                        {item.acao}
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))
+                              ) : (
+                                <p style={{ color: '#999', fontSize: '13px' }}>Nenhum item adicionado</p>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Público Alvo */}
+                          <div className="form-group">
+                            <label htmlFor="view-publico-alvo">Público Alvo</label>
+                            <input
+                              id="view-publico-alvo"
+                              type="text"
+                              className="form-input"
+                              value={selectedPratica.publicoAlvo || ''}
+                              disabled
+                            />
+                          </div>
+
+                          {/* Periodicidade */}
+                          <div className="form-group">
+                            <label>Periodicidade</label>
+                            <div className="items-cards-list">
+                              {selectedPratica.periodicidade && selectedPratica.periodicidade.length > 0 ? (
+                                selectedPratica.periodicidade.map((item) => (
+                                  <div key={item.id} className="item-card">
+                                    <div className="item-card-content">
+                                      {item.meioacao && (
+                                        <div style={{ marginBottom: '10px', paddingBottom: '10px', borderBottom: '1px solid rgba(0,0,0,0.1)' }}>
+                                          <div style={{ marginBottom: '4px' }}>
+                                            <strong style={{ color: 'var(--primary)', fontSize: '11px' }}>REFERÊNCIA:</strong>
+                                          </div>
+                                          <div style={{ fontSize: '11px', lineHeight: '1.4' }}>
+                                            <strong>Meio:</strong> {item.meioacao.meio}
+                                          </div>
+                                          <div style={{ fontSize: '11px', lineHeight: '1.4' }}>
+                                            <strong>Ação:</strong> {item.meioacao.acao.substring(0, 50)}...
+                                          </div>
+                                        </div>
+                                      )}
+                                      <div>
+                                        <strong style={{ color: 'var(--primary)' }}>Periodicidade:</strong> {item.texto}
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))
+                              ) : (
+                                <p style={{ color: '#999', fontSize: '13px' }}>Nenhum item adicionado</p>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Procedimento/Plano de Atividades */}
+                          <div className="form-group">
+                            <label>Procedimento/Plano de Atividades</label>
+                            <div className="procedimentos-list">
+                              {selectedPratica.procedimentos && selectedPratica.procedimentos.length > 0 ? (
+                                selectedPratica.procedimentos.map((proc) => (
+                                  <div key={proc.id} className="procedimento-item">
+                                    <div className="procedimento-content">
+                                      {proc.meioacao && (
+                                        <div style={{ marginBottom: '12px', paddingBottom: '12px', borderBottom: '1px solid rgba(0,0,0,0.1)' }}>
+                                          <div style={{ marginBottom: '4px' }}>
+                                            <strong style={{ color: 'var(--primary)', fontSize: '11px' }}>REFERÊNCIA - MEIO/AÇÃO:</strong>
+                                          </div>
+                                          <div style={{ fontSize: '11px', lineHeight: '1.4' }}>
+                                            <strong>Meio:</strong> {proc.meioacao.meio}
+                                          </div>
+                                          <div style={{ fontSize: '11px', lineHeight: '1.4' }}>
+                                            <strong>Ação:</strong> {proc.meioacao.acao.substring(0, 50)}...
+                                          </div>
+                                        </div>
+                                      )}
+                                      <div style={{ marginBottom: '8px' }}>
+                                        <strong>Atividades:</strong><br/>
+                                        <span style={{ fontSize: '12px' }}>{proc.atividades}</span>
+                                      </div>
+                                      {proc.responsavel && (
+                                        <div style={{ marginBottom: '8px' }}>
+                                          <strong>Responsável:</strong> {proc.responsavel}
+                                        </div>
+                                      )}
+                                      {proc.quando && (
+                                        <div>
+                                          <strong>Quando:</strong> {proc.quando}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                ))
+                              ) : (
+                                <p style={{ color: '#999', fontSize: '13px' }}>Nenhum item adicionado</p>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Métricas */}
+                          <div className="form-group">
+                            <label>Métricas</label>
+                            <div className="items-cards-list">
+                              {selectedPratica.metricas && selectedPratica.metricas.length > 0 ? (
+                                selectedPratica.metricas.map((item) => (
+                                  <div key={item.id} className="item-card">
+                                    <div className="item-card-content">
+                                      <div style={{ marginBottom: '8px' }}>
+                                        <strong style={{ color: 'var(--primary)' }}>{item.titulo}</strong>
+                                      </div>
+                                      <p style={{ margin: 0, fontSize: '12px', color: '#666' }}>{item.descricao}</p>
+                                    </div>
+                                  </div>
+                                ))
+                              ) : (
+                                <p style={{ color: '#999', fontSize: '13px' }}>Nenhum item adicionado</p>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Aprendizado */}
+                          <div className="form-group">
+                            <label htmlFor="view-aprendizado">Aprendizado</label>
+                            <textarea
+                              id="view-aprendizado"
+                              className="form-input form-textarea"
+                              value={selectedPratica.aprendizado || ''}
+                              disabled
+                              rows="3"
+                            />
+                          </div>
+
+                          {/* Evidências */}
+                          <div className="form-group">
+                            <label>Evidências</label>
+                            <div className="evidencias-list">
+                              {selectedPratica.evidencias && selectedPratica.evidencias.length > 0 ? (
+                                selectedPratica.evidencias.map((item) => (
+                                  <div key={item.id} className="evidencia-item">
+                                    <span>📎 {item.nome}</span>
+                                  </div>
+                                ))
+                              ) : (
+                                <p style={{ color: '#999', fontSize: '13px' }}>Nenhum item adicionado</p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     )}
                   </div>
                 )}
-
-              {showPraticaDetailModal && selectedPratica && (
-                <div className="modal-overlay">
-                  <div className="modal-content" style={{ maxWidth: '700px', maxHeight: '90vh' }}>
-                    <div className="modal-header">
-                      <h2>Visualizar Prática Chave</h2>
-                      <button
-                        className="modal-close"
-                        onClick={() => setShowPraticaDetailModal(false)}
-                      >
-                        ✕
-                      </button>
-                    </div>
-
-                    <div className="modal-content-body">
-                      {/* Prática Chave */}
-                      <div className="form-group">
-                        <label htmlFor="view-pratica-chave">Prática Chave</label>
-                        <input
-                          id="view-pratica-chave"
-                          type="text"
-                          className="form-input"
-                          value={selectedPratica.praticaChave || selectedPratica.titulo || ''}
-                          disabled
-                        />
-                      </div>
-
-                      {/* Objetivos */}
-                      <div className="form-group">
-                        <label htmlFor="view-objetivos">Objetivos</label>
-                        <textarea
-                          id="view-objetivos"
-                          className="form-input form-textarea"
-                          value={selectedPratica.objetivos || ''}
-                          disabled
-                          rows="3"
-                        />
-                      </div>
-
-                      {/* Meio/Ação */}
-                      <div className="form-group">
-                        <label>Meio/Ação</label>
-                        <div className="items-cards-list">
-                          {selectedPratica.meioacoes && selectedPratica.meioacoes.length > 0 ? (
-                            selectedPratica.meioacoes.map((item) => (
-                              <div key={item.id} className="item-card">
-                                <div className="item-card-content">
-                                  <div style={{ marginBottom: '8px' }}>
-                                    <strong style={{ color: 'var(--primary)' }}>Meio:</strong> {item.meio}
-                                  </div>
-                                  <div>
-                                    <strong style={{ color: 'var(--primary)' }}>Ação:</strong><br/>
-                                    {item.acao}
-                                  </div>
-                                </div>
-                              </div>
-                            ))
-                          ) : (
-                            <p style={{ color: '#999', fontSize: '13px' }}>Nenhum item adicionado</p>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Público Alvo */}
-                      <div className="form-group">
-                        <label htmlFor="view-publico-alvo">Público Alvo</label>
-                        <input
-                          id="view-publico-alvo"
-                          type="text"
-                          className="form-input"
-                          value={selectedPratica.publicoAlvo || ''}
-                          disabled
-                        />
-                      </div>
-
-                      {/* Periodicidade */}
-                      <div className="form-group">
-                        <label>Periodicidade</label>
-                        <div className="items-cards-list">
-                          {selectedPratica.periodicidade && selectedPratica.periodicidade.length > 0 ? (
-                            selectedPratica.periodicidade.map((item) => (
-                              <div key={item.id} className="item-card">
-                                <div className="item-card-content">
-                                  {item.meioacao && (
-                                    <div style={{ marginBottom: '10px', paddingBottom: '10px', borderBottom: '1px solid rgba(0,0,0,0.1)' }}>
-                                      <div style={{ marginBottom: '4px' }}>
-                                        <strong style={{ color: 'var(--primary)', fontSize: '11px' }}>REFERÊNCIA:</strong>
-                                      </div>
-                                      <div style={{ fontSize: '11px', lineHeight: '1.4' }}>
-                                        <strong>Meio:</strong> {item.meioacao.meio}
-                                      </div>
-                                      <div style={{ fontSize: '11px', lineHeight: '1.4' }}>
-                                        <strong>Ação:</strong> {item.meioacao.acao.substring(0, 50)}...
-                                      </div>
-                                    </div>
-                                  )}
-                                  <div>
-                                    <strong style={{ color: 'var(--primary)' }}>Periodicidade:</strong> {item.texto}
-                                  </div>
-                                </div>
-                              </div>
-                            ))
-                          ) : (
-                            <p style={{ color: '#999', fontSize: '13px' }}>Nenhum item adicionado</p>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Procedimento/Plano de Atividades */}
-                      <div className="form-group">
-                        <label>Procedimento/Plano de Atividades</label>
-                        <div className="procedimentos-list">
-                          {selectedPratica.procedimentos && selectedPratica.procedimentos.length > 0 ? (
-                            selectedPratica.procedimentos.map((proc) => (
-                              <div key={proc.id} className="procedimento-item">
-                                <div className="procedimento-content">
-                                  {proc.meioacao && (
-                                    <div style={{ marginBottom: '12px', paddingBottom: '12px', borderBottom: '1px solid rgba(0,0,0,0.1)' }}>
-                                      <div style={{ marginBottom: '4px' }}>
-                                        <strong style={{ color: 'var(--primary)', fontSize: '11px' }}>REFERÊNCIA - MEIO/AÇÃO:</strong>
-                                      </div>
-                                      <div style={{ fontSize: '11px', lineHeight: '1.4' }}>
-                                        <strong>Meio:</strong> {proc.meioacao.meio}
-                                      </div>
-                                      <div style={{ fontSize: '11px', lineHeight: '1.4' }}>
-                                        <strong>Ação:</strong> {proc.meioacao.acao.substring(0, 50)}...
-                                      </div>
-                                    </div>
-                                  )}
-                                  <div style={{ marginBottom: '8px' }}>
-                                    <strong>Atividades:</strong><br/>
-                                    <span style={{ fontSize: '12px' }}>{proc.atividades}</span>
-                                  </div>
-                                  {proc.responsavel && (
-                                    <div style={{ marginBottom: '8px' }}>
-                                      <strong>Responsável:</strong> {proc.responsavel}
-                                    </div>
-                                  )}
-                                  {proc.quando && (
-                                    <div>
-                                      <strong>Quando:</strong> {proc.quando}
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            ))
-                          ) : (
-                            <p style={{ color: '#999', fontSize: '13px' }}>Nenhum item adicionado</p>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Métricas */}
-                      <div className="form-group">
-                        <label>Métricas</label>
-                        <div className="items-cards-list">
-                          {selectedPratica.metricas && selectedPratica.metricas.length > 0 ? (
-                            selectedPratica.metricas.map((item) => (
-                              <div key={item.id} className="item-card">
-                                <div className="item-card-content">
-                                  <div style={{ marginBottom: '8px' }}>
-                                    <strong style={{ color: 'var(--primary)' }}>{item.titulo}</strong>
-                                  </div>
-                                  <p style={{ margin: 0, fontSize: '12px', color: '#666' }}>{item.descricao}</p>
-                                </div>
-                              </div>
-                            ))
-                          ) : (
-                            <p style={{ color: '#999', fontSize: '13px' }}>Nenhum item adicionado</p>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Aprendizado */}
-                      <div className="form-group">
-                        <label htmlFor="view-aprendizado">Aprendizado</label>
-                        <textarea
-                          id="view-aprendizado"
-                          className="form-input form-textarea"
-                          value={selectedPratica.aprendizado || ''}
-                          disabled
-                          rows="3"
-                        />
-                      </div>
-
-                      {/* Evidências */}
-                      <div className="form-group">
-                        <label>Evidências</label>
-                        <div className="evidencias-list">
-                          {selectedPratica.evidencias && selectedPratica.evidencias.length > 0 ? (
-                            selectedPratica.evidencias.map((item) => (
-                              <div key={item.id} className="evidencia-item">
-                                <span>📎 {item.nome}</span>
-                              </div>
-                            ))
-                          ) : (
-                            <p style={{ color: '#999', fontSize: '13px' }}>Nenhum item adicionado</p>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="modal-footer">
-                      <button
-                        className="btn btn-secondary"
-                        onClick={() => setShowPraticaDetailModal(false)}
-                      >
-                        Fechar
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
 
               {showNovaParticaModal && (
                 <div className="modal-overlay">
