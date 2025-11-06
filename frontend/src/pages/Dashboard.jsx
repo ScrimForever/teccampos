@@ -99,7 +99,7 @@ function Dashboard() {
   const [submenuOpen, setSubmenuOpen] = useState(false)
   const [currentSubmenu, setCurrentSubmenu] = useState('gerenciar')
   const [atividadesSubmenuOpen, setAtividadesSubmenuOpen] = useState(false)
-  const [currentAtividadesSubmenu, setCurrentAtividadesSubmenu] = useState('historico')
+  const [currentAtividadesSubmenu, setCurrentAtividadesSubmenu] = useState('praticas-chaves')
   const [showNovaParticaModal, setShowNovaParticaModal] = useState(false)
   const [showProcedimentoModal, setShowProcedimentoModal] = useState(false)
   const [showMeioAcaoModal, setShowMeioAcaoModal] = useState(false)
@@ -173,32 +173,6 @@ function Dashboard() {
     pendingReviews: 23,
     completedForms: 824
   })
-  const [activities, setActivities] = useState([
-    {
-      id: 1,
-      title: 'Plano de Negócios Enviado',
-      description: 'Seu plano de negócios foi enviado com sucesso',
-      date: new Date().toLocaleDateString('pt-BR'),
-      status: 'completed',
-      icon: '📄'
-    },
-    {
-      id: 2,
-      title: 'Aprovação Pendente',
-      description: 'Seu plano está aguardando aprovação',
-      date: new Date(Date.now() - 86400000).toLocaleDateString('pt-BR'),
-      status: 'pending',
-      icon: '⏳'
-    },
-    {
-      id: 3,
-      title: 'Agendamento Confirmado',
-      description: 'Você confirmou participação no agendamento',
-      date: new Date(Date.now() - 172800000).toLocaleDateString('pt-BR'),
-      status: 'completed',
-      icon: '📅'
-    }
-  ])
   const [praticasChaves, setPraticasChaves] = useState([])
   const [loadingPraticas, setLoadingPraticas] = useState(false)
   const [errorPraticas, setErrorPraticas] = useState(null)
@@ -1363,16 +1337,6 @@ function Dashboard() {
               {atividadesSubmenuOpen && (
                 <div className="submenu">
                   <button
-                    className={`submenu-item ${currentAtividadesSubmenu === 'historico' ? 'active' : ''}`}
-                    onClick={() => {
-                      setCurrentAtividadesSubmenu('historico')
-                      setCurrentSection('atividades')
-                    }}
-                  >
-                    <span className="submenu-icon">📋</span>
-                    <span className="submenu-label">Histórico</span>
-                  </button>
-                  <button
                     className={`submenu-item ${currentAtividadesSubmenu === 'praticas-chaves' ? 'active' : ''}`}
                     onClick={() => {
                       setCurrentAtividadesSubmenu('praticas-chaves')
@@ -1844,38 +1808,7 @@ function Dashboard() {
 
             {currentSection === 'atividades' && (
               <div className="atividades-section">
-                <h2>
-                  {currentAtividadesSubmenu === 'historico' && 'Histórico de Atividades'}
-                  {currentAtividadesSubmenu === 'praticas-chaves' && 'Práticas Chaves'}
-                </h2>
-
-                {currentAtividadesSubmenu === 'historico' && (
-                  <div className="atividades-container">
-                    {activities.length > 0 ? (
-                      <div className="atividades-list">
-                        {activities.map((activity) => (
-                          <div key={activity.id} className={`atividade-item status-${activity.status}`}>
-                            <div className="atividade-icon">{activity.icon}</div>
-                            <div className="atividade-content">
-                              <h4 className="atividade-title">{activity.title}</h4>
-                              <p className="atividade-description">{activity.description}</p>
-                              <span className="atividade-date">📅 {activity.date}</span>
-                            </div>
-                            <div className="atividade-status">
-                              <span className={`status-badge status-${activity.status}`}>
-                                {activity.status === 'completed' ? '✓ Concluída' : '⏳ Pendente'}
-                              </span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="empty-activities">
-                        <p>Nenhuma atividade registrada</p>
-                      </div>
-                    )}
-                  </div>
-                )}
+                <h2>Práticas Chaves</h2>
 
                 {currentAtividadesSubmenu === 'praticas-chaves' && (
                   <div className="praticas-container">
