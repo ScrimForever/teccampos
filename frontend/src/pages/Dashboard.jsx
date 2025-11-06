@@ -5,6 +5,80 @@ import { api } from '../services/api'
 import Loading from '../components/Loading'
 import './Dashboard.css'
 
+// Função para normalizar dados da prática-chave independente do formato da API
+const normalizePratica = (data) => {
+  if (!data || typeof data !== 'object') return null
+
+  // Helper para encontrar valor em múltiplas variações de chave (camelCase, snake_case, etc)
+  const getField = (obj, ...keys) => {
+    if (!obj || typeof obj !== 'object') return undefined
+    for (const key of keys) {
+      if (obj[key] !== undefined && obj[key] !== null) {
+        return obj[key]
+      }
+    }
+    return undefined
+  }
+
+  // Helper para normalizar arrays de objetos
+  const normalizeArray = (arr) => {
+    if (!Array.isArray(arr)) return []
+    return arr
+      .map(item => (item && typeof item === 'object' ? item : null))
+      .filter(item => item !== null && item !== undefined)
+  }
+
+  // Log para debug (remover em produção)
+  const debugLog = (name, value) => {
+    if (value !== undefined && value !== null && (Array.isArray(value) ? value.length > 0 : true)) {
+      console.log(`  ✓ ${name}:`, value)
+    }
+  }
+
+  // Buscar e normalizar dados
+  const normalized = {
+    id: getField(data, 'id', '_id') || Date.now(),
+    titulo: getField(data, 'titulo', 'title', 'praticaChave', 'pratica_chave') || 'Sem título',
+    icone: getField(data, 'icone', 'icon') || '🎯',
+    status: getField(data, 'status') || 'ativo',
+
+    // Campos de conteúdo principal
+    praticaChave: getField(data, 'praticaChave', 'pratica_chave', 'titulo', 'title') || '',
+    objetivos: getField(data, 'objetivos', 'objectives', 'objetivo', 'goals') || '',
+    publicoAlvo: getField(data, 'publicoAlvo', 'publico_alvo', 'publicAlvo', 'target_audience', 'audience') || '',
+    aprendizado: getField(data, 'aprendizado', 'aprendizados', 'learning', 'lessons') || '',
+
+    // Arrays - com múltiplas variações de nomes
+    meioacoes: normalizeArray(
+      getField(data, 'meioacoes', 'meio_acoes', 'meioAcoes', 'means_actions', 'meios_acoes', 'meio_acao', 'meioacao')
+    ),
+    periodicidade: normalizeArray(
+      getField(data, 'periodicidade', 'periodicidades', 'periodicity', 'frequencia', 'frequencias')
+    ),
+    procedimentos: normalizeArray(
+      getField(data, 'procedimentos', 'procedures', 'plano_atividades', 'planoAtividades', 'activities')
+    ),
+    metricas: normalizeArray(
+      getField(data, 'metricas', 'metrics', 'métricas', 'indicadores', 'indicators')
+    ),
+    evidencias: normalizeArray(
+      getField(data, 'evidencias', 'evidências', 'evidence', 'proofs', 'documents')
+    ),
+
+    // Preservar dados originais como fallback (sem duplicação de chaves já normalizadas)
+    ...data
+  }
+
+  console.log(`📦 Prática normalizada: ${normalized.titulo}`)
+  debugLog('meioacoes', normalized.meioacoes)
+  debugLog('periodicidade', normalized.periodicidade)
+  debugLog('procedimentos', normalized.procedimentos)
+  debugLog('metricas', normalized.metricas)
+  debugLog('evidencias', normalized.evidencias)
+
+  return normalized
+}
+
 function Dashboard() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -16,6 +90,49 @@ function Dashboard() {
   })
   const [submenuOpen, setSubmenuOpen] = useState(false)
   const [currentSubmenu, setCurrentSubmenu] = useState('gerenciar')
+  const [atividadesSubmenuOpen, setAtividadesSubmenuOpen] = useState(false)
+  const [currentAtividadesSubmenu, setCurrentAtividadesSubmenu] = useState('historico')
+  const [showNovaParticaModal, setShowNovaParticaModal] = useState(false)
+  const [showProcedimentoModal, setShowProcedimentoModal] = useState(false)
+  const [showMeioAcaoModal, setShowMeioAcaoModal] = useState(false)
+  const [showPeriodicidadeModal, setShowPeriodicidadeModal] = useState(false)
+  const [showNovaMetricaModal, setShowNovaMetricaModal] = useState(false)
+  const [showPraticaDetailModal, setShowPraticaDetailModal] = useState(false)
+  const [selectedPratica, setSelectedPratica] = useState(null)
+  const [selectedPraticaId, setSelectedPraticaId] = useState(null)
+  const [novaParticaForm, setNovaParticaForm] = useState({
+    praticaChave: '',
+    objetivos: '',
+    meioacoes: [],
+    publicoAlvo: '',
+    periodicidade: [],
+    procedimentos: [],
+    metricas: [],
+    aprendizado: '',
+    evidencias: []
+  })
+  const [novaMeioacao, setNovaMeioacao] = useState({
+    meio: '',
+    acao: ''
+  })
+  const [novaPeriodicidade, setNovaPeriodicidade] = useState({
+    meioacaoId: '',
+    periodicidade: ''
+  })
+  const [novaProcedimento, setNovaProcedimento] = useState({
+    meioacaoId: '',
+    atividades: '',
+    responsavel: '',
+    quando: ''
+  })
+  const [novaMetrica, setNovaMetrica] = useState({
+    titulo: '',
+    descricao: ''
+  })
+  const [novaEvidencia, setNovaEvidencia] = useState({
+    nome: '',
+    arquivo: null
+  })
   const [isIncubado, setIsIncubado] = useState(true)
   const [isConsultor, setIsConsultor] = useState(false)
   const [loadingApproval, setLoadingApproval] = useState(true)
@@ -46,11 +163,38 @@ function Dashboard() {
   const [hasChanges, setHasChanges] = useState(false)  // Rastreia se há modificações na agenda
   const [stats, setStats] = useState({
     totalUsers: 1250,
-    totalSubmissions: 847,
     pendingReviews: 23,
     completedForms: 824
   })
-  const [recentSubmissions, setRecentSubmissions] = useState([])
+  const [activities, setActivities] = useState([
+    {
+      id: 1,
+      title: 'Plano de Negócios Enviado',
+      description: 'Seu plano de negócios foi enviado com sucesso',
+      date: new Date().toLocaleDateString('pt-BR'),
+      status: 'completed',
+      icon: '📄'
+    },
+    {
+      id: 2,
+      title: 'Aprovação Pendente',
+      description: 'Seu plano está aguardando aprovação',
+      date: new Date(Date.now() - 86400000).toLocaleDateString('pt-BR'),
+      status: 'pending',
+      icon: '⏳'
+    },
+    {
+      id: 3,
+      title: 'Agendamento Confirmado',
+      description: 'Você confirmou participação no agendamento',
+      date: new Date(Date.now() - 172800000).toLocaleDateString('pt-BR'),
+      status: 'completed',
+      icon: '📅'
+    }
+  ])
+  const [praticasChaves, setPraticasChaves] = useState([])
+  const [loadingPraticas, setLoadingPraticas] = useState(false)
+  const [errorPraticas, setErrorPraticas] = useState(null)
 
   useEffect(() => {
     // Save current section to localStorage whenever it changes
@@ -97,6 +241,71 @@ function Dashboard() {
 
     checkUserStatus()
   }, [])
+
+  useEffect(() => {
+    if (currentAtividadesSubmenu === 'praticas-chaves') {
+      const fetchPraticas = async () => {
+        setLoadingPraticas(true)
+        setErrorPraticas(null)
+        try {
+          const response = await api.get('/pratica-chave')
+
+          console.log('🔍 API Response:', response.data)
+          console.log('🔍 Is Array:', Array.isArray(response.data))
+          if (Array.isArray(response.data) && response.data.length > 0) {
+            console.log('🔍 First item:', response.data[0])
+            console.log('🔍 First item keys:', Object.keys(response.data[0]))
+          }
+
+          let praticas = []
+
+          // Extrair array de práticas da resposta (múltiplos formatos possíveis)
+          if (Array.isArray(response.data)) {
+            praticas = response.data
+          } else if (response.data && Array.isArray(response.data.praticas)) {
+            praticas = response.data.praticas
+          } else if (response.data && response.data.pratica_chave) {
+            praticas = [response.data]
+          } else if (response.data && typeof response.data === 'object') {
+            praticas = [response.data]
+          }
+
+          // Normalizar todos os dados usando a função normalizadora
+          praticas = praticas
+            .map((item) => {
+              // Se item tem campo pratica_chave, mesclar com dados do wrapper
+              if (item && item.pratica_chave && typeof item.pratica_chave === 'object') {
+                return normalizePratica({
+                  id: item.id,
+                  titulo: item.titulo,
+                  icone: item.icone,
+                  status: item.status,
+                  ...item.pratica_chave
+                })
+              }
+              return normalizePratica(item)
+            })
+            .filter(p => p !== null)
+
+          console.log('📊 Práticas após extração:', praticas)
+          if (praticas.length > 0) {
+            console.log('📊 Primeira prática após extração:', praticas[0])
+            console.log('📊 Chaves da primeira prática:', Object.keys(praticas[0]))
+          }
+
+          setPraticasChaves(praticas)
+        } catch (err) {
+          console.error('Erro ao carregar práticas chaves:', err)
+          setErrorPraticas(err.message || 'Erro ao carregar práticas chaves')
+          setPraticasChaves([])
+        } finally {
+          setLoadingPraticas(false)
+        }
+      }
+
+      fetchPraticas()
+    }
+  }, [currentAtividadesSubmenu])
 
   useEffect(() => {
     if (currentSection === 'gerenciar-projetos' && isConsultor) {
@@ -221,6 +430,219 @@ function Dashboard() {
     logout()
   }
 
+  const handleAddMeioacoes = () => {
+    if (!novaMeioacao.meio.trim() || !novaMeioacao.acao.trim()) {
+      alert('Por favor, preencha os campos Meio e Ação')
+      return
+    }
+    setNovaParticaForm({
+      ...novaParticaForm,
+      meioacoes: [...novaParticaForm.meioacoes, { id: Date.now(), meio: novaMeioacao.meio, acao: novaMeioacao.acao }]
+    })
+    setNovaMeioacao({
+      meio: '',
+      acao: ''
+    })
+  }
+
+  const handleRemoveMeioacoes = (id) => {
+    setNovaParticaForm({
+      ...novaParticaForm,
+      meioacoes: novaParticaForm.meioacoes.filter(m => m.id !== id)
+    })
+  }
+
+  const handleAddPeriodicidade = () => {
+    if (!novaPeriodicidade.meioacaoId || !novaPeriodicidade.periodicidade.trim()) {
+      alert('Por favor, selecione um Meio/Ação e preencha a Periodicidade')
+      return
+    }
+
+    const meioacaoSelecionado = novaParticaForm.meioacoes.find(m => m.id == novaPeriodicidade.meioacaoId)
+
+    setNovaParticaForm({
+      ...novaParticaForm,
+      periodicidade: [...novaParticaForm.periodicidade, {
+        id: Date.now(),
+        meioacaoId: novaPeriodicidade.meioacaoId,
+        meioacao: meioacaoSelecionado,
+        texto: novaPeriodicidade.periodicidade
+      }]
+    })
+    setNovaPeriodicidade({
+      meioacaoId: '',
+      periodicidade: ''
+    })
+  }
+
+  const handleRemovePeriodicidade = (id) => {
+    setNovaParticaForm({
+      ...novaParticaForm,
+      periodicidade: novaParticaForm.periodicidade.filter(p => p.id !== id)
+    })
+  }
+
+  const handleAddProcedimento = () => {
+    if (!novaProcedimento.meioacaoId || !novaProcedimento.atividades.trim()) {
+      alert('Por favor, selecione um Meio/Ação e preencha as Atividades')
+      return
+    }
+
+    const meioacaoSelecionado = novaParticaForm.meioacoes.find(m => m.id == novaProcedimento.meioacaoId)
+
+    setNovaParticaForm({
+      ...novaParticaForm,
+      procedimentos: [...novaParticaForm.procedimentos, {
+        id: Date.now(),
+        meioacaoId: novaProcedimento.meioacaoId,
+        meioacao: meioacaoSelecionado,
+        atividades: novaProcedimento.atividades,
+        responsavel: novaProcedimento.responsavel,
+        quando: novaProcedimento.quando
+      }]
+    })
+
+    setNovaProcedimento({
+      meioacaoId: '',
+      atividades: '',
+      responsavel: '',
+      quando: ''
+    })
+    setShowProcedimentoModal(false)
+  }
+
+  const handleRemoveProcedimento = (id) => {
+    setNovaParticaForm({
+      ...novaParticaForm,
+      procedimentos: novaParticaForm.procedimentos.filter(p => p.id !== id)
+    })
+  }
+
+  const handleAddMetrica = () => {
+    if (!novaMetrica.titulo.trim() || !novaMetrica.descricao.trim()) return
+    setNovaParticaForm({
+      ...novaParticaForm,
+      metricas: [...novaParticaForm.metricas, { id: Date.now(), titulo: novaMetrica.titulo, descricao: novaMetrica.descricao }]
+    })
+    setNovaMetrica({ titulo: '', descricao: '' })
+    setShowNovaMetricaModal(false)
+  }
+
+  const handleRemoveMetrica = (id) => {
+    setNovaParticaForm({
+      ...novaParticaForm,
+      metricas: novaParticaForm.metricas.filter(m => m.id !== id)
+    })
+  }
+
+  const handleAddEvidencia = () => {
+    if (!novaEvidencia.nome.trim()) {
+      alert('Por favor, preencha o nome da evidência')
+      return
+    }
+
+    setNovaParticaForm({
+      ...novaParticaForm,
+      evidencias: [...novaParticaForm.evidencias, { id: Date.now(), ...novaEvidencia }]
+    })
+
+    setNovaEvidencia({
+      nome: '',
+      arquivo: null
+    })
+  }
+
+  const handleRemoveEvidencia = (id) => {
+    setNovaParticaForm({
+      ...novaParticaForm,
+      evidencias: novaParticaForm.evidencias.filter(e => e.id !== id)
+    })
+  }
+
+  const handleAddNovaPartica = async () => {
+    if (!novaParticaForm.praticaChave.trim()) {
+      alert('Por favor, preencha o título da prática')
+      return
+    }
+
+    const novaPartica = {
+      id: praticasChaves.length + 1,
+      titulo: novaParticaForm.praticaChave,
+      icone: '🎯',
+      status: 'pending',
+      ...novaParticaForm
+    }
+
+    // Gerar output JSON
+    const jsonOutput = {
+      praticaChave: novaPartica.praticaChave,
+      objetivos: novaPartica.objetivos,
+      meioacoes: novaPartica.meioacoes,
+      publicoAlvo: novaPartica.publicoAlvo,
+      periodicidade: novaPartica.periodicidade,
+      procedimentos: novaPartica.procedimentos,
+      metricas: novaPartica.metricas,
+      aprendizado: novaPartica.aprendizado,
+      evidencias: novaPartica.evidencias
+    }
+
+    console.log('=== JSON da Prática Chave ===')
+    console.log(JSON.stringify(jsonOutput, null, 2))
+    console.log('=============================')
+
+    try {
+      const payloadToSend = {
+        pratica_chave: jsonOutput
+      }
+      const response = await api.post('/pratica-chave', payloadToSend)
+
+      console.log('Resposta do servidor:', response)
+
+      // Normalizar a nova prática antes de adicionar
+      const normalizedNovaPartica = normalizePratica(novaPartica)
+      setPraticasChaves([...praticasChaves, normalizedNovaPartica])
+
+      // Resetar formulário e fechar modal
+      setNovaParticaForm({
+        praticaChave: '',
+        objetivos: '',
+        meioacoes: [],
+        publicoAlvo: '',
+        periodicidade: [],
+        procedimentos: [],
+        metricas: [],
+        aprendizado: '',
+        evidencias: []
+      })
+      setShowNovaParticaModal(false)
+
+      // Mostrar mensagem de sucesso
+      setMessageModalType('success')
+      setMessageModalContent('Prática chave criada com sucesso!')
+      setShowMessageModal(true)
+    } catch (error) {
+      console.error('Erro ao criar prática chave:', error)
+      setMessageModalType('error')
+      setMessageModalContent(error.message || 'Erro ao criar prática chave. Tente novamente.')
+      setShowMessageModal(true)
+    }
+  }
+
+  const handleCancelNovaPartica = () => {
+    setNovaParticaForm({
+      praticaChave: '',
+      objetivos: '',
+      meioacoes: [],
+      publicoAlvo: '',
+      periodicidade: [],
+      procedimentos: [],
+      metricas: [],
+      aprendizado: '',
+      evidencias: []
+    })
+    setShowNovaParticaModal(false)
+  }
+
   const handleViewPlan = (plan) => {
     // Pass the plan data through navigation state
     navigate('/questionario-form', {
@@ -320,10 +742,6 @@ function Dashboard() {
 
   const getFirstDayOfMonth = (year, month) => {
     return new Date(year, month, 1).getDay()
-  }
-
-  const getSubmissionsForDate = (date) => {
-    return recentSubmissions.filter(submission => submission.date === date)
   }
 
   const handlePreviousMonth = () => {
@@ -831,7 +1249,6 @@ function Dashboard() {
     // Add days of the month
     for (let day = 1; day <= daysInMonth; day++) {
       const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-      const submissions = getSubmissionsForDate(dateStr)
       const scheduledAppointments = getAppointmentsForDate(dateStr)
       const isSelected = selectedDate === dateStr
 
@@ -848,7 +1265,6 @@ function Dashboard() {
         <div
           key={day}
           className={`calendar-day
-            ${submissions.length > 0 ? 'has-event' : ''}
             ${isSelected ? 'selected' : ''}
             ${isInRange ? 'in-range' : ''}
             ${scheduledAppointments.length > 0 ? 'has-appointment' : ''}
@@ -858,7 +1274,6 @@ function Dashboard() {
         >
           <div className="day-number">{day}</div>
           <div className="day-indicators">
-            {submissions.length > 0 && <div className="event-count">{submissions.length}</div>}
             {scheduledAppointments.length > 0 && <div className="appointment-count">{scheduledAppointments.length}</div>}
           </div>
           {scheduledAppointments.length > 0 && (
@@ -920,19 +1335,49 @@ function Dashboard() {
               <span className="nav-label">Overview</span>
             </button>
             <button
-              className={`nav-item ${currentSection === 'submissions' ? 'active' : ''}`}
-              onClick={() => setCurrentSection('submissions')}
-            >
-              <span className="nav-icon">📋</span>
-              <span className="nav-label">Submissões</span>
-            </button>
-            <button
               className={`nav-item ${currentSection === 'agenda' ? 'active' : ''}`}
               onClick={() => setCurrentSection('agenda')}
             >
               <span className="nav-icon">📅</span>
               <span className="nav-label">Agenda</span>
             </button>
+            <div className="nav-group">
+              <button
+                className={`nav-item ${currentSection === 'atividades' ? 'active' : ''}`}
+                onClick={() => {
+                  setCurrentSection('atividades')
+                  setAtividadesSubmenuOpen(!atividadesSubmenuOpen)
+                }}
+              >
+                <span className="nav-icon">✓</span>
+                <span className="nav-label">Atividades</span>
+                <span className={`submenu-arrow ${atividadesSubmenuOpen ? 'open' : ''}`}>▼</span>
+              </button>
+              {atividadesSubmenuOpen && (
+                <div className="submenu">
+                  <button
+                    className={`submenu-item ${currentAtividadesSubmenu === 'historico' ? 'active' : ''}`}
+                    onClick={() => {
+                      setCurrentAtividadesSubmenu('historico')
+                      setCurrentSection('atividades')
+                    }}
+                  >
+                    <span className="submenu-icon">📋</span>
+                    <span className="submenu-label">Histórico</span>
+                  </button>
+                  <button
+                    className={`submenu-item ${currentAtividadesSubmenu === 'praticas-chaves' ? 'active' : ''}`}
+                    onClick={() => {
+                      setCurrentAtividadesSubmenu('praticas-chaves')
+                      setCurrentSection('atividades')
+                    }}
+                  >
+                    <span className="submenu-icon">🎯</span>
+                    <span className="submenu-label">Práticas Chaves</span>
+                  </button>
+                </div>
+              )}
+            </div>
             {isConsultor && (
               <div className="nav-group">
                 <button
@@ -1023,13 +1468,6 @@ function Dashboard() {
                     </div>
                   </div>
                   <div className="stat-card">
-                    <div className="stat-icon">📝</div>
-                    <div className="stat-info">
-                      <h3>Submissões</h3>
-                      <p className="stat-number">{stats.totalSubmissions}</p>
-                    </div>
-                  </div>
-                  <div className="stat-card">
                     <div className="stat-icon">⏳</div>
                     <div className="stat-info">
                       <h3>Pendentes</h3>
@@ -1043,67 +1481,6 @@ function Dashboard() {
                       <p className="stat-number">{stats.completedForms}</p>
                     </div>
                   </div>
-                </div>
-
-                <div className="recent-section">
-                  <h3>Submissões Recentes</h3>
-                  <table className="submissions-table">
-                    <thead>
-                      <tr>
-                        <th>Nome</th>
-                        <th>Empresa</th>
-                        <th>Data</th>
-                        <th>Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {recentSubmissions.map(submission => (
-                        <tr key={submission.id}>
-                          <td>{submission.name}</td>
-                          <td>{submission.company}</td>
-                          <td>{submission.date}</td>
-                          <td>
-                            <span className={`status-badge status-${submission.status}`}>
-                              {submission.status === 'completed' ? '✓ Completo' : '⏳ Pendente'}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-
-            {currentSection === 'submissions' && (
-              <div className="submissions-section">
-                <h2>Gerenciar Submissões</h2>
-                <div className="recent-section">
-                  <h3>Todas as Submissões</h3>
-                  <table className="submissions-table">
-                    <thead>
-                      <tr>
-                        <th>Nome</th>
-                        <th>Empresa</th>
-                        <th>Data</th>
-                        <th>Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {recentSubmissions.map(submission => (
-                        <tr key={submission.id}>
-                          <td>{submission.name}</td>
-                          <td>{submission.company}</td>
-                          <td>{submission.date}</td>
-                          <td>
-                            <span className={`status-badge status-${submission.status}`}>
-                              {submission.status === 'completed' ? '✓ Completo' : '⏳ Pendente'}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
                 </div>
               </div>
             )}
@@ -1153,22 +1530,6 @@ function Dashboard() {
                               </div>
                             )}
 
-                            {getSubmissionsForDate(selectedDate).length > 0 && (
-                              <div className="event-section">
-                                <div className="section-title">Submissões</div>
-                                {getSubmissionsForDate(selectedDate).map(submission => (
-                                  <div key={submission.id} className="event-item">
-                                    <div className="event-name">{submission.name}</div>
-                                    <div className="event-company">{submission.company}</div>
-                                    <div className="event-status">
-                                      <span className={`status-badge status-${submission.status}`}>
-                                        {submission.status === 'completed' ? '✓ Completo' : '⏳ Pendente'}
-                                      </span>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
                             {getAppointmentsForDate(selectedDate).length > 0 && (
                               <div className="event-section">
                                 <div className="section-title">Agendamentos</div>
@@ -1205,9 +1566,9 @@ function Dashboard() {
                                 ))}
                               </div>
                             )}
-                            {getSubmissionsForDate(selectedDate).length === 0 && getAppointmentsForDate(selectedDate).length === 0 && (
+                            {getAppointmentsForDate(selectedDate).length === 0 && (
                               <div className="no-events">
-                                <p>Nenhum evento nesta data</p>
+                                <p>Nenhum agendamento nesta data</p>
                               </div>
                             )}
                           </>
@@ -1471,6 +1832,976 @@ function Dashboard() {
                     </div>
                   </div>
                 )}
+              </div>
+            )}
+
+            {currentSection === 'atividades' && (
+              <div className="atividades-section">
+                <h2>
+                  {currentAtividadesSubmenu === 'historico' && 'Histórico de Atividades'}
+                  {currentAtividadesSubmenu === 'praticas-chaves' && 'Práticas Chaves'}
+                </h2>
+
+                {currentAtividadesSubmenu === 'historico' && (
+                  <div className="atividades-container">
+                    {activities.length > 0 ? (
+                      <div className="atividades-list">
+                        {activities.map((activity) => (
+                          <div key={activity.id} className={`atividade-item status-${activity.status}`}>
+                            <div className="atividade-icon">{activity.icon}</div>
+                            <div className="atividade-content">
+                              <h4 className="atividade-title">{activity.title}</h4>
+                              <p className="atividade-description">{activity.description}</p>
+                              <span className="atividade-date">📅 {activity.date}</span>
+                            </div>
+                            <div className="atividade-status">
+                              <span className={`status-badge status-${activity.status}`}>
+                                {activity.status === 'completed' ? '✓ Concluída' : '⏳ Pendente'}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="empty-activities">
+                        <p>Nenhuma atividade registrada</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {currentAtividadesSubmenu === 'praticas-chaves' && (
+                  <div className="praticas-sidebar-only">
+                    <div className="praticas-sidebar-header">
+                      <h3>Práticas Chaves</h3>
+                      <button
+                        className="btn btn-primary btn-small"
+                        onClick={() => setShowNovaParticaModal(true)}
+                        title="Adicionar nova prática"
+                      >
+                        ➕
+                      </button>
+                    </div>
+                    {loadingPraticas ? (
+                      <div className="praticas-sidebar-loading">
+                        <p>⏳ Carregando...</p>
+                      </div>
+                    ) : errorPraticas ? (
+                      <div className="praticas-sidebar-error">
+                        <p>❌ Erro ao carregar</p>
+                      </div>
+                    ) : praticasChaves.length > 0 ? (
+                      <div className="praticas-sidebar-list">
+                        {praticasChaves.map((pratica, index) => (
+                          <button
+                            key={pratica.id || `pratica-${index}`}
+                            className={`pratica-sidebar-item ${selectedPraticaId === pratica.id ? 'active' : ''}`}
+                            onClick={() => {
+                              const normalizedPratica = normalizePratica(pratica)
+                              console.log('📋 Prática selecionada (original):', pratica)
+                              console.log('📋 Prática normalizada:', normalizedPratica)
+                              console.log('📋 Todas as chaves:', Object.keys(normalizedPratica))
+                              setSelectedPraticaId(normalizedPratica.id)
+                              setSelectedPratica(normalizedPratica)
+                              setShowPraticaDetailModal(true)
+                            }}
+                          >
+                            <span className="pratica-sidebar-icon">{pratica.icone || '🎯'}</span>
+                            <span className="pratica-sidebar-title">{pratica.titulo}</span>
+                            <span className={`pratica-sidebar-status status-${pratica.status}`}>{pratica.status}</span>
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="praticas-sidebar-empty">
+                        <p>Nenhuma prática cadastrada</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+              {showPraticaDetailModal && selectedPratica && (
+                <div className="modal-overlay">
+                  <div className="modal-content" style={{ maxWidth: '700px', maxHeight: '90vh' }}>
+                    <div className="modal-header">
+                      <h2>Visualizar Prática Chave</h2>
+                      <button
+                        className="modal-close"
+                        onClick={() => setShowPraticaDetailModal(false)}
+                      >
+                        ✕
+                      </button>
+                    </div>
+
+                    <div className="modal-content-body">
+                      {/* Prática Chave */}
+                      <div className="form-group">
+                        <label htmlFor="view-pratica-chave">Prática Chave</label>
+                        <input
+                          id="view-pratica-chave"
+                          type="text"
+                          className="form-input"
+                          value={selectedPratica.praticaChave || selectedPratica.titulo || ''}
+                          disabled
+                        />
+                      </div>
+
+                      {/* Objetivos */}
+                      <div className="form-group">
+                        <label htmlFor="view-objetivos">Objetivos</label>
+                        <textarea
+                          id="view-objetivos"
+                          className="form-input form-textarea"
+                          value={selectedPratica.objetivos || ''}
+                          disabled
+                          rows="3"
+                        />
+                      </div>
+
+                      {/* Meio/Ação */}
+                      <div className="form-group">
+                        <label>Meio/Ação</label>
+                        <div className="items-cards-list">
+                          {selectedPratica.meioacoes && selectedPratica.meioacoes.length > 0 ? (
+                            selectedPratica.meioacoes.map((item) => (
+                              <div key={item.id} className="item-card">
+                                <div className="item-card-content">
+                                  <div style={{ marginBottom: '8px' }}>
+                                    <strong style={{ color: 'var(--primary)' }}>Meio:</strong> {item.meio}
+                                  </div>
+                                  <div>
+                                    <strong style={{ color: 'var(--primary)' }}>Ação:</strong><br/>
+                                    {item.acao}
+                                  </div>
+                                </div>
+                              </div>
+                            ))
+                          ) : (
+                            <p style={{ color: '#999', fontSize: '13px' }}>Nenhum item adicionado</p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Público Alvo */}
+                      <div className="form-group">
+                        <label htmlFor="view-publico-alvo">Público Alvo</label>
+                        <input
+                          id="view-publico-alvo"
+                          type="text"
+                          className="form-input"
+                          value={selectedPratica.publicoAlvo || ''}
+                          disabled
+                        />
+                      </div>
+
+                      {/* Periodicidade */}
+                      <div className="form-group">
+                        <label>Periodicidade</label>
+                        <div className="items-cards-list">
+                          {selectedPratica.periodicidade && selectedPratica.periodicidade.length > 0 ? (
+                            selectedPratica.periodicidade.map((item) => (
+                              <div key={item.id} className="item-card">
+                                <div className="item-card-content">
+                                  {item.meioacao && (
+                                    <div style={{ marginBottom: '10px', paddingBottom: '10px', borderBottom: '1px solid rgba(0,0,0,0.1)' }}>
+                                      <div style={{ marginBottom: '4px' }}>
+                                        <strong style={{ color: 'var(--primary)', fontSize: '11px' }}>REFERÊNCIA:</strong>
+                                      </div>
+                                      <div style={{ fontSize: '11px', lineHeight: '1.4' }}>
+                                        <strong>Meio:</strong> {item.meioacao.meio}
+                                      </div>
+                                      <div style={{ fontSize: '11px', lineHeight: '1.4' }}>
+                                        <strong>Ação:</strong> {item.meioacao.acao.substring(0, 50)}...
+                                      </div>
+                                    </div>
+                                  )}
+                                  <div>
+                                    <strong style={{ color: 'var(--primary)' }}>Periodicidade:</strong> {item.texto || item.periodicidade}
+                                  </div>
+                                </div>
+                              </div>
+                            ))
+                          ) : (
+                            <p style={{ color: '#999', fontSize: '13px' }}>Nenhum item adicionado</p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Procedimento/Plano de Atividades */}
+                      <div className="form-group">
+                        <label>Procedimento/Plano de Atividades</label>
+                        <div className="procedimentos-list">
+                          {selectedPratica.procedimentos && selectedPratica.procedimentos.length > 0 ? (
+                            selectedPratica.procedimentos.map((proc) => (
+                              <div key={proc.id} className="procedimento-item">
+                                <div className="procedimento-content">
+                                  {proc.meioacao && (
+                                    <div style={{ marginBottom: '12px', paddingBottom: '12px', borderBottom: '1px solid rgba(0,0,0,0.1)' }}>
+                                      <div style={{ marginBottom: '4px' }}>
+                                        <strong style={{ color: 'var(--primary)', fontSize: '11px' }}>REFERÊNCIA - MEIO/AÇÃO:</strong>
+                                      </div>
+                                      <div style={{ fontSize: '11px', lineHeight: '1.4' }}>
+                                        <strong>Meio:</strong> {proc.meioacao.meio}
+                                      </div>
+                                      <div style={{ fontSize: '11px', lineHeight: '1.4' }}>
+                                        <strong>Ação:</strong> {proc.meioacao.acao.substring(0, 50)}...
+                                      </div>
+                                    </div>
+                                  )}
+                                  <div style={{ marginBottom: '8px' }}>
+                                    <strong>Atividades:</strong><br/>
+                                    <span style={{ fontSize: '12px' }}>{proc.atividades}</span>
+                                  </div>
+                                  {proc.responsavel && (
+                                    <div style={{ marginBottom: '8px' }}>
+                                      <strong>Responsável:</strong> {proc.responsavel}
+                                    </div>
+                                  )}
+                                  {proc.quando && (
+                                    <div>
+                                      <strong>Quando:</strong> {proc.quando}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            ))
+                          ) : (
+                            <p style={{ color: '#999', fontSize: '13px' }}>Nenhum item adicionado</p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Métricas */}
+                      <div className="form-group">
+                        <label>Métricas</label>
+                        <div className="items-cards-list">
+                          {selectedPratica.metricas && selectedPratica.metricas.length > 0 ? (
+                            selectedPratica.metricas.map((item) => (
+                              <div key={item.id} className="item-card">
+                                <div className="item-card-content">
+                                  <div style={{ marginBottom: '8px' }}>
+                                    <strong style={{ color: 'var(--primary)' }}>{item.titulo}</strong>
+                                  </div>
+                                  <p style={{ margin: 0, fontSize: '12px', color: '#666' }}>{item.descricao}</p>
+                                </div>
+                              </div>
+                            ))
+                          ) : (
+                            <p style={{ color: '#999', fontSize: '13px' }}>Nenhum item adicionado</p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Aprendizado */}
+                      <div className="form-group">
+                        <label htmlFor="view-aprendizado">Aprendizado</label>
+                        <textarea
+                          id="view-aprendizado"
+                          className="form-input form-textarea"
+                          value={selectedPratica.aprendizado || ''}
+                          disabled
+                          rows="3"
+                        />
+                      </div>
+
+                      {/* Evidências */}
+                      <div className="form-group">
+                        <label>Evidências</label>
+                        <div className="evidencias-list">
+                          {selectedPratica.evidencias && selectedPratica.evidencias.length > 0 ? (
+                            selectedPratica.evidencias.map((item) => (
+                              <div key={item.id} className="evidencia-item">
+                                <span>📎 {item.nome}</span>
+                              </div>
+                            ))
+                          ) : (
+                            <p style={{ color: '#999', fontSize: '13px' }}>Nenhum item adicionado</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="modal-footer">
+                      <button
+                        className="btn btn-secondary"
+                        onClick={() => setShowPraticaDetailModal(false)}
+                      >
+                        Fechar
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {showNovaParticaModal && (
+                <div className="modal-overlay">
+                  <div className="modal-content" style={{ maxWidth: '700px', maxHeight: '90vh' }}>
+                    <div className="modal-header">
+                      <h2>Adicionar Nova Prática Chave</h2>
+                      <button
+                        className="modal-close"
+                        onClick={handleCancelNovaPartica}
+                      >
+                        ✕
+                      </button>
+                    </div>
+
+                    <div className="modal-content-body">
+                      {/* Prática Chave */}
+                      <div className="form-group">
+                        <label htmlFor="pratica-chave">Prática Chave *</label>
+                        <input
+                          id="pratica-chave"
+                          type="text"
+                          className="form-input"
+                          placeholder="Digite a prática chave"
+                          value={novaParticaForm.praticaChave}
+                          onChange={(e) => setNovaParticaForm({
+                            ...novaParticaForm,
+                            praticaChave: e.target.value
+                          })}
+                        />
+                      </div>
+
+                      {/* Objetivos */}
+                      <div className="form-group">
+                        <label htmlFor="objetivos">Objetivos</label>
+                        <textarea
+                          id="objetivos"
+                          className="form-input form-textarea"
+                          placeholder="Descreva os objetivos da prática"
+                          value={novaParticaForm.objetivos}
+                          onChange={(e) => setNovaParticaForm({
+                            ...novaParticaForm,
+                            objetivos: e.target.value
+                          })}
+                          rows="3"
+                        />
+                      </div>
+
+                      {/* Meio/Ação */}
+                      <div className="form-group">
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <label>Meio/Ação</label>
+                          <button
+                            className="btn btn-small btn-primary"
+                            onClick={() => setShowMeioAcaoModal(true)}
+                          >
+                            ➕ Adicionar
+                          </button>
+                        </div>
+                        <div className="items-cards-list">
+                          {novaParticaForm.meioacoes.map((item) => (
+                            <div key={item.id} className="item-card">
+                              <div className="item-card-content">
+                                <div style={{ marginBottom: '8px' }}>
+                                  <strong style={{ color: 'var(--primary)' }}>Meio:</strong> {item.meio}
+                                </div>
+                                <div>
+                                  <strong style={{ color: 'var(--primary)' }}>Ação:</strong><br/>
+                                  {item.acao}
+                                </div>
+                              </div>
+                              <button
+                                className="item-card-remove"
+                                onClick={() => handleRemoveMeioacoes(item.id)}
+                                title="Remover"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Público Alvo */}
+                      <div className="form-group">
+                        <label htmlFor="publico-alvo">Público Alvo</label>
+                        <input
+                          id="publico-alvo"
+                          type="text"
+                          className="form-input"
+                          placeholder="Descreva o público alvo"
+                          value={novaParticaForm.publicoAlvo}
+                          onChange={(e) => setNovaParticaForm({
+                            ...novaParticaForm,
+                            publicoAlvo: e.target.value
+                          })}
+                        />
+                      </div>
+
+                      {/* Periodicidade */}
+                      <div className="form-group">
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <label>Periodicidade</label>
+                          <button
+                            className="btn btn-small btn-primary"
+                            onClick={() => setShowPeriodicidadeModal(true)}
+                          >
+                            ➕ Adicionar
+                          </button>
+                        </div>
+                        <div className="items-cards-list">
+                          {novaParticaForm.periodicidade.map((item) => (
+                            <div key={item.id} className="item-card">
+                              <div className="item-card-content">
+                                {item.meioacao && (
+                                  <div style={{ marginBottom: '10px', paddingBottom: '10px', borderBottom: '1px solid rgba(0,0,0,0.1)' }}>
+                                    <div style={{ marginBottom: '4px' }}>
+                                      <strong style={{ color: 'var(--primary)', fontSize: '11px' }}>REFERÊNCIA:</strong>
+                                    </div>
+                                    <div style={{ fontSize: '11px', lineHeight: '1.4' }}>
+                                      <strong>Meio:</strong> {item.meioacao.meio}
+                                    </div>
+                                    <div style={{ fontSize: '11px', lineHeight: '1.4' }}>
+                                      <strong>Ação:</strong> {item.meioacao.acao.substring(0, 50)}...
+                                    </div>
+                                  </div>
+                                )}
+                                <div>
+                                  <strong style={{ color: 'var(--primary)' }}>Periodicidade:</strong> {item.texto}
+                                </div>
+                              </div>
+                              <button
+                                className="item-card-remove"
+                                onClick={() => handleRemovePeriodicidade(item.id)}
+                                title="Remover"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Procedimento/Plano de Atividades */}
+                      <div className="form-group">
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <label>Procedimento/Plano de Atividades</label>
+                          <button
+                            className="btn btn-small btn-primary"
+                            onClick={() => setShowProcedimentoModal(true)}
+                          >
+                            ➕ Adicionar
+                          </button>
+                        </div>
+                        <div className="procedimentos-list">
+                          {novaParticaForm.procedimentos.map((proc) => (
+                            <div key={proc.id} className="procedimento-item">
+                              <div className="procedimento-content">
+                                {proc.meioacao && (
+                                  <div style={{ marginBottom: '12px', paddingBottom: '12px', borderBottom: '1px solid rgba(0,0,0,0.1)' }}>
+                                    <div style={{ marginBottom: '4px' }}>
+                                      <strong style={{ color: 'var(--primary)', fontSize: '11px' }}>REFERÊNCIA - MEIO/AÇÃO:</strong>
+                                    </div>
+                                    <div style={{ fontSize: '11px', lineHeight: '1.4' }}>
+                                      <strong>Meio:</strong> {proc.meioacao.meio}
+                                    </div>
+                                    <div style={{ fontSize: '11px', lineHeight: '1.4' }}>
+                                      <strong>Ação:</strong> {proc.meioacao.acao.substring(0, 50)}...
+                                    </div>
+                                  </div>
+                                )}
+                                <div style={{ marginBottom: '8px' }}>
+                                  <strong>Atividades:</strong><br/>
+                                  <span style={{ fontSize: '12px' }}>{proc.atividades}</span>
+                                </div>
+                                {proc.responsavel && (
+                                  <div style={{ marginBottom: '8px' }}>
+                                    <strong>Responsável:</strong> {proc.responsavel}
+                                  </div>
+                                )}
+                                {proc.quando && (
+                                  <div>
+                                    <strong>Quando:</strong> {proc.quando}
+                                  </div>
+                                )}
+                              </div>
+                              <button
+                                className="btn-remove-item"
+                                onClick={() => handleRemoveProcedimento(proc.id)}
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Métricas */}
+                      <div className="form-group">
+                        <label>Métricas</label>
+                        <button
+                          className="btn btn-small btn-primary"
+                          onClick={() => setShowNovaMetricaModal(true)}
+                        >
+                          ➕ Adicionar Métrica
+                        </button>
+                        <div className="items-cards-list">
+                          {novaParticaForm.metricas.map((item) => (
+                            <div key={item.id} className="item-card">
+                              <h4 style={{ margin: '0 0 8px 0', color: 'var(--primary)' }}>{item.titulo}</h4>
+                              <p style={{ margin: '0', fontSize: '12px', lineHeight: '1.4' }}>{item.descricao}</p>
+                              <button
+                                className="tag-remove"
+                                onClick={() => handleRemoveMetrica(item.id)}
+                                style={{ position: 'absolute', top: '10px', right: '10px' }}
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Aprendizado */}
+                      <div className="form-group">
+                        <label htmlFor="aprendizado">Aprendizado</label>
+                        <textarea
+                          id="aprendizado"
+                          className="form-input form-textarea"
+                          placeholder="Descreva os aprendizados"
+                          value={novaParticaForm.aprendizado}
+                          onChange={(e) => setNovaParticaForm({
+                            ...novaParticaForm,
+                            aprendizado: e.target.value
+                          })}
+                          rows="3"
+                        />
+                      </div>
+
+                      {/* Evidências */}
+                      <div className="form-group">
+                        <label>Evidências</label>
+                        <div className="evidencia-input">
+                          <input
+                            type="text"
+                            className="form-input"
+                            placeholder="Nome da evidência"
+                            value={novaEvidencia.nome}
+                            onChange={(e) => setNovaEvidencia({
+                              ...novaEvidencia,
+                              nome: e.target.value
+                            })}
+                          />
+                          <input
+                            type="file"
+                            className="form-input"
+                            onChange={(e) => setNovaEvidencia({
+                              ...novaEvidencia,
+                              arquivo: e.target.files?.[0]
+                            })}
+                          />
+                          <button
+                            className="btn btn-small btn-primary"
+                            onClick={handleAddEvidencia}
+                          >
+                            ➕
+                          </button>
+                        </div>
+                        <div className="evidencias-list">
+                          {novaParticaForm.evidencias.map((item) => (
+                            <div key={item.id} className="evidencia-item">
+                              <span>📎 {item.nome}</span>
+                              <button
+                                className="btn-remove-item"
+                                onClick={() => handleRemoveEvidencia(item.id)}
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="modal-footer">
+                      <button
+                        className="btn btn-secondary"
+                        onClick={handleCancelNovaPartica}
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        className="btn btn-primary"
+                        onClick={handleAddNovaPartica}
+                      >
+                        Adicionar Prática
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Sub-modal para Procedimento/Plano de Atividades */}
+                  {showProcedimentoModal && (
+                    <div className="modal-overlay modal-overlay-nested">
+                      <div className="modal-content" style={{ maxWidth: '550px' }}>
+                        <div className="modal-header">
+                          <h3>Adicionar Procedimento/Plano de Atividades</h3>
+                          <button
+                            className="modal-close"
+                            onClick={() => setShowProcedimentoModal(false)}
+                          >
+                            ✕
+                          </button>
+                        </div>
+
+                        <div className="modal-content-body">
+                          {novaParticaForm.meioacoes.length === 0 ? (
+                            <div style={{ textAlign: 'center', padding: '30px 20px', color: 'var(--text)', opacity: 0.7 }}>
+                              <p>⚠️ Você precisa adicionar pelo menos um Meio/Ação primeiro</p>
+                            </div>
+                          ) : (
+                            <>
+                              <div className="form-group">
+                                <label htmlFor="proc-meioacao-select">Selecione Meio/Ação *</label>
+                                <select
+                                  id="proc-meioacao-select"
+                                  className="form-input"
+                                  value={novaProcedimento.meioacaoId}
+                                  onChange={(e) => setNovaProcedimento({
+                                    ...novaProcedimento,
+                                    meioacaoId: e.target.value
+                                  })}
+                                >
+                                  <option value="">-- Selecione um Meio/Ação --</option>
+                                  {novaParticaForm.meioacoes.map((item) => (
+                                    <option key={item.id} value={item.id}>
+                                      {item.meio} - {item.acao.substring(0, 30)}...
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              {novaProcedimento.meioacaoId && (
+                                <div style={{ padding: '15px', backgroundColor: 'var(--light)', borderRadius: '8px', marginBottom: '16px', borderLeft: '4px solid var(--primary-light)' }}>
+                                  <h4 style={{ margin: '0 0 10px 0', color: 'var(--primary)', fontSize: '14px' }}>Referência - Meio/Ação Selecionado:</h4>
+                                  {novaParticaForm.meioacoes.find(m => m.id == novaProcedimento.meioacaoId) && (
+                                    <>
+                                      <p style={{ margin: '0 0 8px 0', fontSize: '12px' }}>
+                                        <strong style={{ color: 'var(--primary)' }}>Meio:</strong> {novaParticaForm.meioacoes.find(m => m.id == novaProcedimento.meioacaoId).meio}
+                                      </p>
+                                      <p style={{ margin: '0', fontSize: '12px', lineHeight: '1.4' }}>
+                                        <strong style={{ color: 'var(--primary)' }}>Ação:</strong> {novaParticaForm.meioacoes.find(m => m.id == novaProcedimento.meioacaoId).acao}
+                                      </p>
+                                    </>
+                                  )}
+                                </div>
+                              )}
+
+                              <div className="form-group">
+                                <label htmlFor="proc-atividades">Atividades *</label>
+                                <textarea
+                                  id="proc-atividades"
+                                  className="form-input form-textarea"
+                                  placeholder="Descreva as atividades"
+                                  value={novaProcedimento.atividades}
+                                  onChange={(e) => setNovaProcedimento({
+                                    ...novaProcedimento,
+                                    atividades: e.target.value
+                                  })}
+                                  rows="3"
+                                />
+                              </div>
+
+                              <div className="form-group">
+                                <label htmlFor="proc-responsavel">Responsável</label>
+                                <input
+                                  id="proc-responsavel"
+                                  type="text"
+                                  className="form-input"
+                                  placeholder="Nome do responsável"
+                                  value={novaProcedimento.responsavel}
+                                  onChange={(e) => setNovaProcedimento({
+                                    ...novaProcedimento,
+                                    responsavel: e.target.value
+                                  })}
+                                />
+                              </div>
+
+                              <div className="form-group">
+                                <label htmlFor="proc-quando">Quando</label>
+                                <input
+                                  id="proc-quando"
+                                  type="text"
+                                  className="form-input"
+                                  placeholder="Data ou período"
+                                  value={novaProcedimento.quando}
+                                  onChange={(e) => setNovaProcedimento({
+                                    ...novaProcedimento,
+                                    quando: e.target.value
+                                  })}
+                                />
+                              </div>
+                            </>
+                          )}
+                        </div>
+
+                        <div className="modal-footer">
+                          <button
+                            className="btn btn-secondary"
+                            onClick={() => setShowProcedimentoModal(false)}
+                          >
+                            Cancelar
+                          </button>
+                          <button
+                            className="btn btn-primary"
+                            disabled={novaParticaForm.meioacoes.length === 0}
+                            onClick={handleAddProcedimento}
+                          >
+                            Adicionar
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Sub-modal para Meio/Ação */}
+                  {showMeioAcaoModal && (
+                    <div className="modal-overlay modal-overlay-nested">
+                      <div className="modal-content" style={{ maxWidth: '500px' }}>
+                        <div className="modal-header">
+                          <h3>Adicionar Meio/Ação</h3>
+                          <button
+                            className="modal-close"
+                            onClick={() => {
+                              setShowMeioAcaoModal(false)
+                              setNovaMeioacao({ meio: '', acao: '' })
+                            }}
+                          >
+                            ✕
+                          </button>
+                        </div>
+
+                        <div className="modal-content-body">
+                          <div className="form-group">
+                            <label htmlFor="meio-input">Meio *</label>
+                            <input
+                              id="meio-input"
+                              type="text"
+                              className="form-input"
+                              placeholder="Digite o meio"
+                              value={novaMeioacao.meio}
+                              onChange={(e) => setNovaMeioacao({
+                                ...novaMeioacao,
+                                meio: e.target.value
+                              })}
+                            />
+                          </div>
+
+                          <div className="form-group">
+                            <label htmlFor="acao-input">Ação *</label>
+                            <textarea
+                              id="acao-input"
+                              className="form-input form-textarea"
+                              placeholder="Digite a ação"
+                              value={novaMeioacao.acao}
+                              onChange={(e) => setNovaMeioacao({
+                                ...novaMeioacao,
+                                acao: e.target.value
+                              })}
+                              rows="4"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="modal-footer">
+                          <button
+                            className="btn btn-secondary"
+                            onClick={() => {
+                              setShowMeioAcaoModal(false)
+                              setNovaMeioacao({ meio: '', acao: '' })
+                            }}
+                          >
+                            Cancelar
+                          </button>
+                          <button
+                            className="btn btn-primary"
+                            onClick={() => {
+                              handleAddMeioacoes()
+                              setShowMeioAcaoModal(false)
+                            }}
+                          >
+                            Adicionar
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Sub-modal para Periodicidade */}
+                  {showPeriodicidadeModal && (
+                    <div className="modal-overlay modal-overlay-nested">
+                      <div className="modal-content" style={{ maxWidth: '550px' }}>
+                        <div className="modal-header">
+                          <h3>Adicionar Periodicidade</h3>
+                          <button
+                            className="modal-close"
+                            onClick={() => {
+                              setShowPeriodicidadeModal(false)
+                              setNovaPeriodicidade({ meioacaoId: '', periodicidade: '' })
+                            }}
+                          >
+                            ✕
+                          </button>
+                        </div>
+
+                        <div className="modal-content-body">
+                          {novaParticaForm.meioacoes.length === 0 ? (
+                            <div style={{ textAlign: 'center', padding: '30px 20px', color: 'var(--text)', opacity: 0.7 }}>
+                              <p>⚠️ Você precisa adicionar pelo menos um Meio/Ação primeiro</p>
+                            </div>
+                          ) : (
+                            <>
+                              <div className="form-group">
+                                <label htmlFor="meioacao-select">Selecione Meio/Ação *</label>
+                                <select
+                                  id="meioacao-select"
+                                  className="form-input"
+                                  value={novaPeriodicidade.meioacaoId}
+                                  onChange={(e) => setNovaPeriodicidade({
+                                    ...novaPeriodicidade,
+                                    meioacaoId: e.target.value
+                                  })}
+                                >
+                                  <option value="">-- Selecione um Meio/Ação --</option>
+                                  {novaParticaForm.meioacoes.map((item) => (
+                                    <option key={item.id} value={item.id}>
+                                      {item.meio} - {item.acao.substring(0, 30)}...
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              {novaPeriodicidade.meioacaoId && (
+                                <div style={{ padding: '15px', backgroundColor: 'var(--light)', borderRadius: '8px', marginBottom: '16px', borderLeft: '4px solid var(--primary-light)' }}>
+                                  <h4 style={{ margin: '0 0 10px 0', color: 'var(--primary)', fontSize: '14px' }}>Referência - Meio/Ação Selecionado:</h4>
+                                  {novaParticaForm.meioacoes.find(m => m.id == novaPeriodicidade.meioacaoId) && (
+                                    <>
+                                      <p style={{ margin: '0 0 8px 0', fontSize: '12px' }}>
+                                        <strong style={{ color: 'var(--primary)' }}>Meio:</strong> {novaParticaForm.meioacoes.find(m => m.id == novaPeriodicidade.meioacaoId).meio}
+                                      </p>
+                                      <p style={{ margin: '0', fontSize: '12px', lineHeight: '1.4' }}>
+                                        <strong style={{ color: 'var(--primary)' }}>Ação:</strong> {novaParticaForm.meioacoes.find(m => m.id == novaPeriodicidade.meioacaoId).acao}
+                                      </p>
+                                    </>
+                                  )}
+                                </div>
+                              )}
+
+                              <div className="form-group">
+                                <label htmlFor="periodicidade-input">Periodicidade *</label>
+                                <input
+                                  id="periodicidade-input"
+                                  type="text"
+                                  className="form-input"
+                                  placeholder="Ex: Semanal, Mensal, Trimestral, Anual"
+                                  value={novaPeriodicidade.periodicidade}
+                                  onChange={(e) => setNovaPeriodicidade({
+                                    ...novaPeriodicidade,
+                                    periodicidade: e.target.value
+                                  })}
+                                />
+                              </div>
+                            </>
+                          )}
+                        </div>
+
+                        <div className="modal-footer">
+                          <button
+                            className="btn btn-secondary"
+                            onClick={() => {
+                              setShowPeriodicidadeModal(false)
+                              setNovaPeriodicidade({ meioacaoId: '', periodicidade: '' })
+                            }}
+                          >
+                            Cancelar
+                          </button>
+                          <button
+                            className="btn btn-primary"
+                            disabled={novaParticaForm.meioacoes.length === 0}
+                            onClick={() => {
+                              handleAddPeriodicidade()
+                              setShowPeriodicidadeModal(false)
+                            }}
+                          >
+                            Adicionar
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Sub-modal para Métricas */}
+                  {showNovaMetricaModal && (
+                    <div className="modal-overlay modal-overlay-nested">
+                      <div className="modal-content" style={{ maxWidth: '500px' }}>
+                        <div className="modal-header">
+                          <h3>Adicionar Métrica</h3>
+                          <button
+                            className="modal-close"
+                            onClick={() => {
+                              setShowNovaMetricaModal(false)
+                              setNovaMetrica({ titulo: '', descricao: '' })
+                            }}
+                          >
+                            ✕
+                          </button>
+                        </div>
+
+                        <div className="modal-content-body">
+                          <div className="form-group">
+                            <label htmlFor="metrica-titulo">Título *</label>
+                            <input
+                              id="metrica-titulo"
+                              type="text"
+                              className="form-input"
+                              placeholder="Digite o título da métrica"
+                              value={novaMetrica.titulo}
+                              onChange={(e) => setNovaMetrica({
+                                ...novaMetrica,
+                                titulo: e.target.value
+                              })}
+                            />
+                          </div>
+
+                          <div className="form-group">
+                            <label htmlFor="metrica-descricao">Descrição *</label>
+                            <textarea
+                              id="metrica-descricao"
+                              className="form-input form-textarea"
+                              placeholder="Descreva a métrica"
+                              value={novaMetrica.descricao}
+                              onChange={(e) => setNovaMetrica({
+                                ...novaMetrica,
+                                descricao: e.target.value
+                              })}
+                              rows="4"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="modal-footer">
+                          <button
+                            className="btn btn-secondary"
+                            onClick={() => {
+                              setShowNovaMetricaModal(false)
+                              setNovaMetrica({ titulo: '', descricao: '' })
+                            }}
+                          >
+                            Cancelar
+                          </button>
+                          <button
+                            className="btn btn-primary"
+                            onClick={handleAddMetrica}
+                          >
+                            Adicionar
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
               </div>
             )}
 

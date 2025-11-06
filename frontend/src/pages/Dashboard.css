@@ -379,8 +379,8 @@
 }
 
 .overview-section,
-.submissions-section,
 .agenda-section,
+.atividades-section,
 .users-section,
 .aprovar-section,
 .settings-section {
@@ -404,8 +404,8 @@
 }
 
 .overview-section h2,
-.submissions-section h2,
 .agenda-section h2,
+.atividades-section h2,
 .users-section h2,
 .aprovar-section h2,
 .settings-section h2 {
@@ -731,8 +731,8 @@
 
 @media (max-width: 1200px) {
   .overview-section,
-  .submissions-section,
   .agenda-section,
+  .atividades-section,
   .users-section,
   .aprovar-section,
   .settings-section {
@@ -799,8 +799,8 @@
   }
 
   .overview-section,
-  .submissions-section,
   .agenda-section,
+  .atividades-section,
   .users-section,
   .aprovar-section,
   .settings-section {
@@ -842,8 +842,8 @@
   }
 
   .overview-section h2,
-  .submissions-section h2,
   .agenda-section h2,
+  .atividades-section h2,
   .users-section h2,
   .aprovar-section h2,
   .settings-section h2 {
@@ -880,12 +880,14 @@
 
 .modal-content {
   background: white;
-  padding: 40px;
   border-radius: 12px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
   max-width: 400px;
   text-align: center;
   animation: slideUp 0.3s ease-out;
+  display: flex;
+  flex-direction: column;
+  max-height: 90vh;
 }
 
 @keyframes slideUp {
@@ -1158,12 +1160,6 @@
   box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
 }
 
-.calendar-day.has-event {
-  background: #e0f2fe;
-  border-color: var(--primary-light);
-  font-weight: 600;
-}
-
 .calendar-day.selected {
   background: var(--primary-light);
   border-color: var(--primary);
@@ -1199,21 +1195,6 @@
   margin-top: 2px;
   width: 100%;
   flex-wrap: wrap;
-}
-
-.event-count {
-  font-size: 9px;
-  background: var(--danger);
-  color: white;
-  padding: 1px 4px;
-  border-radius: 6px;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.calendar-day.selected .event-count {
-  background: white;
-  color: var(--primary-light);
 }
 
 .appointment-count {
@@ -1646,6 +1627,262 @@
   transform: scale(1.2);
 }
 
+.modal-content-body {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 24px;
+  max-height: calc(90vh - 140px);
+  scroll-behavior: smooth;
+}
+
+/* Scrollbar Styling - Webkit (Chrome, Safari, Edge) */
+.modal-content-body::-webkit-scrollbar {
+  width: 10px;
+}
+
+.modal-content-body::-webkit-scrollbar-track {
+  background: var(--light);
+  border-radius: 10px;
+  margin: 5px 0;
+}
+
+.modal-content-body::-webkit-scrollbar-thumb {
+  background: var(--primary-light);
+  border-radius: 10px;
+  border: 2px solid var(--light);
+  transition: all 0.3s;
+}
+
+.modal-content-body::-webkit-scrollbar-thumb:hover {
+  background: var(--primary);
+  border-color: var(--light);
+}
+
+/* Scrollbar Styling - Firefox */
+.modal-content-body {
+  scrollbar-color: var(--primary-light) var(--light);
+  scrollbar-width: thin;
+}
+
+/* Ícone Selector */
+.icone-selector {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.icone-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  background: var(--light);
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  font-size: 24px;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.icone-button:hover {
+  background: var(--light);
+  border-color: var(--primary-light);
+  transform: scale(1.1);
+}
+
+.icone-button.selected {
+  background: var(--primary-light);
+  border-color: var(--primary);
+  color: white;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+/* Input with Button */
+.input-with-button {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+}
+
+.btn-small {
+  padding: 8px 16px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+/* Tags List */
+.tags-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+  min-height: 30px;
+}
+
+.tag-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: var(--primary-light);
+  color: white;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.tag-remove {
+  background: none;
+  border: none;
+  color: white;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  transition: all 0.3s;
+}
+
+.tag-remove:hover {
+  transform: scale(1.2);
+}
+
+/* Meio/Ação and Periodicidade Cards List */
+.items-cards-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.item-card {
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  background: white;
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  transition: all 0.3s;
+  position: relative;
+}
+
+.item-card:hover {
+  border-color: var(--primary-light);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
+  transform: translateY(-2px);
+}
+
+.item-card-content {
+  flex: 1;
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.6;
+  word-wrap: break-word;
+  padding-right: 30px;
+}
+
+.item-card-remove {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: var(--danger);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 16px;
+  transition: all 0.3s;
+}
+
+.item-card-remove:hover {
+  background: #dc2626;
+  transform: scale(1.1);
+}
+
+/* Procedimentos List */
+.procedimentos-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.procedimento-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  background: var(--light);
+  border-radius: 8px;
+  border-left: 3px solid var(--primary-light);
+}
+
+.procedimento-content {
+  flex: 1;
+  font-size: 12px;
+  color: var(--text);
+  line-height: 1.6;
+}
+
+.btn-remove-item {
+  background: none;
+  border: none;
+  color: var(--danger);
+  cursor: pointer;
+  font-size: 18px;
+  padding: 0;
+  transition: all 0.3s;
+  flex-shrink: 0;
+}
+
+.btn-remove-item:hover {
+  transform: scale(1.2);
+}
+
+/* Evidência Input */
+.evidencia-input {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.evidencia-input .form-input {
+  margin: 0;
+}
+
+/* Evidências List */
+.evidencias-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.evidencia-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: var(--light);
+  border-radius: 8px;
+  border-left: 3px solid var(--accent);
+  font-size: 13px;
+}
+
+/* Modal overlay nested (para sub-modais) */
+.modal-overlay-nested {
+  z-index: 10000;
+  background: rgba(0, 0, 0, 0.7);
+}
+
 .appointment-modal .modal-content {
   flex: 1;
   overflow-y: auto;
@@ -1681,6 +1918,41 @@
   outline: none;
   border-color: var(--primary-light);
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* Custom Select/Dropdown Styling */
+.form-input[type="select"],
+select.form-input {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%231e3a8a' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 36px;
+  cursor: pointer;
+}
+
+select.form-input:focus {
+  outline: none;
+  border-color: var(--primary-light);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+select.form-input option {
+  padding: 10px;
+  background: white;
+  color: var(--text);
+  border-radius: 4px;
+}
+
+select.form-input option:hover {
+  background: var(--primary-light);
+  color: white;
+}
+
+select.form-input option:checked {
+  background: linear-gradient(#3b82f6, #3b82f6);
+  background-color: var(--primary-light);
+  color: white;
 }
 
 .form-textarea {
@@ -1803,6 +2075,529 @@
   padding-bottom: 2px;
 }
 
+/* ===== ATIVIDADES SECTION ===== */
+.atividades-container {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.atividades-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  animation: fadeIn 0.3s ease-in;
+}
+
+.atividade-item {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 20px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  border-left: 5px solid var(--primary-light);
+  transition: all 0.3s;
+}
+
+.atividade-item:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+}
+
+.atividade-item.status-pending {
+  border-left-color: var(--warning);
+  background: rgba(245, 158, 11, 0.05);
+}
+
+.atividade-item.status-completed {
+  border-left-color: var(--accent);
+  background: rgba(16, 185, 129, 0.05);
+}
+
+.atividade-icon {
+  font-size: 32px;
+  min-width: 50px;
+  text-align: center;
+}
+
+.atividade-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.atividade-title {
+  margin: 0 0 8px 0;
+  font-size: 16px;
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.atividade-description {
+  margin: 0 0 10px 0;
+  font-size: 14px;
+  color: var(--text);
+  opacity: 0.9;
+  line-height: 1.5;
+}
+
+.atividade-date {
+  font-size: 12px;
+  color: var(--text);
+  opacity: 0.7;
+  display: inline-block;
+}
+
+.atividade-status {
+  flex-shrink: 0;
+}
+
+.empty-activities {
+  padding: 60px 20px;
+  text-align: center;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  animation: fadeIn 0.3s ease-in;
+}
+
+.empty-activities p {
+  margin: 0;
+  font-size: 16px;
+  color: var(--text);
+  opacity: 0.6;
+  font-weight: 500;
+}
+
+/* ===== PRÁTICAS CHAVES SECTION ===== */
+.praticas-container {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.praticas-header {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 24px;
+  gap: 12px;
+}
+
+.btn-adicionar-pratica {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.praticas-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 20px;
+  animation: fadeIn 0.3s ease-in;
+}
+
+.pratica-card {
+  display: flex;
+  flex-direction: column;
+  padding: 24px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  border-left: 5px solid var(--primary-light);
+  transition: all 0.3s;
+  cursor: pointer;
+}
+
+.pratica-card:hover {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  transform: translateY(-4px);
+}
+
+.pratica-card.status-pending {
+  border-left-color: var(--warning);
+  background: rgba(245, 158, 11, 0.03);
+}
+
+.pratica-card.status-in_progress {
+  border-left-color: #3b82f6;
+  background: rgba(59, 130, 246, 0.03);
+}
+
+.pratica-card.status-completed {
+  border-left-color: var(--accent);
+  background: rgba(16, 185, 129, 0.03);
+}
+
+.pratica-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.pratica-icon {
+  font-size: 32px;
+  min-width: 40px;
+  text-align: center;
+  line-height: 1;
+}
+
+.pratica-title-section {
+  flex: 1;
+  min-width: 0;
+}
+
+.pratica-titulo {
+  margin: 0 0 8px 0;
+  font-size: 16px;
+  color: var(--primary);
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.pratica-status-badge {
+  flex-shrink: 0;
+}
+
+.pratica-status-badge .status-badge {
+  white-space: nowrap;
+  font-size: 11px;
+}
+
+.pratica-descricao {
+  flex: 1;
+}
+
+.pratica-descricao p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text);
+  opacity: 0.85;
+  line-height: 1.6;
+}
+
+/* Notification Card Styles */
+.pratica-notification-card {
+  display: flex;
+  flex-direction: column;
+  padding: 24px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  border-left: 5px solid var(--primary-light);
+  transition: all 0.3s ease;
+  margin-bottom: 16px;
+  animation: slideInUp 0.3s ease;
+}
+
+.pratica-notification-card:hover {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  transform: translateY(-2px);
+}
+
+.pratica-notification-card.status-pending {
+  border-left-color: var(--warning);
+  background: rgba(245, 158, 11, 0.02);
+}
+
+.pratica-notification-card.status-in_progress {
+  border-left-color: #3b82f6;
+  background: rgba(59, 130, 246, 0.02);
+}
+
+.pratica-notification-card.status-completed {
+  border-left-color: var(--accent);
+  background: rgba(16, 185, 129, 0.02);
+}
+
+.pratica-notification-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid var(--border);
+}
+
+.pratica-notification-header .pratica-icon {
+  font-size: 40px;
+  min-width: 50px;
+  text-align: center;
+}
+
+.pratica-notification-header .pratica-title-section {
+  flex: 1;
+  min-width: 0;
+}
+
+.pratica-notification-header .pratica-titulo {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--primary);
+  line-height: 1.4;
+}
+
+.pratica-notification-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pratica-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pratica-field > strong {
+  color: var(--primary);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.pratica-field > p {
+  margin: 0;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.pratica-items-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.pratica-item-box {
+  padding: 12px;
+  background: var(--light);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pratica-item-box div {
+  margin: 0;
+  line-height: 1.4;
+}
+
+.pratica-item-box strong {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.pratica-evidencias-list {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pratica-evidencias-list li {
+  padding: 10px 12px;
+  background: var(--light);
+  border-left: 3px solid var(--primary-light);
+  border-radius: 4px;
+  color: var(--text);
+  font-size: 14px;
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.empty-praticas {
+  padding: 60px 20px;
+  text-align: center;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  animation: fadeIn 0.3s ease-in;
+}
+
+.empty-praticas p {
+  margin: 0;
+  font-size: 16px;
+  color: var(--text);
+  opacity: 0.6;
+  font-weight: 500;
+}
+
+/* Práticas Sidebar Layout - Only sidebar view */
+.praticas-sidebar-only {
+  display: flex;
+  flex-direction: column;
+  max-width: 350px;
+  background: white;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.praticas-sidebar {
+  flex: 0 0 280px;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  background: var(--light);
+  overflow: hidden;
+}
+
+.praticas-sidebar-only {
+  max-height: calc(100vh - 180px);
+}
+
+.praticas-sidebar-header {
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.praticas-sidebar-header h3 {
+  margin: 0;
+  font-size: 16px;
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.btn-small {
+  padding: 6px 10px !important;
+  font-size: 16px !important;
+  min-width: auto !important;
+  border: none;
+  background: var(--primary-light);
+  color: var(--primary);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.btn-small:hover {
+  background: var(--primary);
+  color: white;
+}
+
+.praticas-sidebar-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.pratica-sidebar-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  margin-bottom: 4px;
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s;
+  text-align: left;
+  color: var(--text);
+  font-size: 14px;
+  min-height: 50px;
+}
+
+.pratica-sidebar-item:hover {
+  background: #f0f4ff;
+  border-color: var(--primary-light);
+}
+
+.pratica-sidebar-item.active {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+
+.pratica-sidebar-icon {
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.pratica-sidebar-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pratica-sidebar-status {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(100, 100, 100, 0.15);
+  color: #666;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.pratica-sidebar-item.active .pratica-sidebar-status {
+  background: rgba(255, 255, 255, 0.3);
+  color: white;
+}
+
+.praticas-sidebar-loading,
+.praticas-sidebar-error,
+.praticas-sidebar-empty {
+  padding: 20px;
+  text-align: center;
+  color: #999;
+  font-size: 14px;
+}
+
+/* Responsivo */
+@media (max-width: 768px) {
+  .praticas-sidebar-only {
+    max-width: 100%;
+  }
+
+  .praticas-sidebar-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  }
+
+  .pratica-sidebar-item {
+    flex-direction: column;
+    text-align: center;
+    min-height: auto;
+    padding: 12px 8px;
+  }
+
+  .pratica-sidebar-icon {
+    font-size: 28px;
+  }
+
+  .pratica-sidebar-title {
+    white-space: normal;
+    text-overflow: clip;
+  }
+
+  .pratica-sidebar-status {
+    width: 100%;
+  }
+}
+
 @media (max-width: 768px) {
   .calendar-day {
     min-height: 60px;
@@ -1855,5 +2650,61 @@
 
   .time-separator {
     display: none;
+  }
+
+  .atividade-item {
+    padding: 16px;
+    gap: 16px;
+  }
+
+  .atividade-icon {
+    font-size: 28px;
+    min-width: 40px;
+  }
+
+  .atividade-title {
+    font-size: 14px;
+  }
+
+  .atividade-description {
+    font-size: 12px;
+  }
+
+  .praticas-list {
+    grid-template-columns: 1fr;
+  }
+
+  .pratica-card {
+    padding: 16px;
+  }
+
+  .pratica-header {
+    gap: 12px;
+  }
+
+  .pratica-icon {
+    font-size: 28px;
+    min-width: 32px;
+  }
+
+  .pratica-titulo {
+    font-size: 14px;
+  }
+
+  .pratica-descricao p {
+    font-size: 12px;
+  }
+
+  .praticas-header {
+    justify-content: center;
+  }
+
+  .icone-selector {
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  .icone-button {
+    padding: 10px;
+    font-size: 20px;
   }
 }
