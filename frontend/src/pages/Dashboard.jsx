@@ -1346,6 +1346,16 @@ function Dashboard() {
                     <span className="submenu-icon">🎯</span>
                     <span className="submenu-label">Práticas Chaves</span>
                   </button>
+                  <button
+                    className={`submenu-item ${currentAtividadesSubmenu === 'eventos' ? 'active' : ''}`}
+                    onClick={() => {
+                      setCurrentAtividadesSubmenu('eventos')
+                      setCurrentSection('atividades')
+                    }}
+                  >
+                    <span className="submenu-icon">📅</span>
+                    <span className="submenu-label">Eventos</span>
+                  </button>
                 </div>
               )}
             </div>
@@ -1808,7 +1818,7 @@ function Dashboard() {
 
             {currentSection === 'atividades' && (
               <div className="atividades-section">
-                <h2>Práticas Chaves</h2>
+                <h2>{currentAtividadesSubmenu === 'praticas-chaves' ? 'Práticas Chaves' : 'Eventos'}</h2>
 
                 {currentAtividadesSubmenu === 'praticas-chaves' && (
                   <div className="praticas-container">
@@ -2064,6 +2074,27 @@ function Dashboard() {
                         </div>
                       </div>
                     )}
+                  </div>
+                )}
+
+                {currentAtividadesSubmenu === 'eventos' && (
+                  <div className="eventos-container">
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      minHeight: '400px',
+                      backgroundColor: 'white',
+                      borderRadius: '12px',
+                      textAlign: 'center',
+                      color: '#999'
+                    }}>
+                      <div>
+                        <p style={{ fontSize: '48px', margin: '0 0 16px 0' }}>📅</p>
+                        <p style={{ fontSize: '16px', fontWeight: '600', margin: '0 0 8px 0' }}>Eventos</p>
+                        <p style={{ fontSize: '14px', color: '#999' }}>Nenhum evento cadastrado</p>
+                      </div>
+                    </div>
                   </div>
                 )}
 

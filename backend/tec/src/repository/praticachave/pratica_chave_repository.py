@@ -22,5 +22,4 @@ class PraticaChaveRepository:
         stmt = select(PraticaChave)
         result = await db.execute(stmt)
         result_praticas = result.scalars().all()
-        print(result_praticas)
         return result_praticas
