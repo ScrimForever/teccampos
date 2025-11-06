@@ -5,7 +5,8 @@ import { api } from '../services/api'
 import Loading from '../components/Loading'
 import './Dashboard.css'
 
-// Função para normalizar dados da prática-chave independente do formato da API
+// Função para normalizar dados da prática-chave para espelhar jsonOutput
+// Desencapsula dados da API e retorna estrutura consistente
 const normalizePratica = (data) => {
   if (!data || typeof data !== 'object') return null
 
@@ -28,53 +29,60 @@ const normalizePratica = (data) => {
       .filter(item => item !== null && item !== undefined)
   }
 
-  // Log para debug (remover em produção)
-  const debugLog = (name, value) => {
-    if (value !== undefined && value !== null && (Array.isArray(value) ? value.length > 0 : true)) {
-      console.log(`  ✓ ${name}:`, value)
+  // Se os dados estão encapsulados dentro de uma chave pratica_chave, desencapsular
+  let sourceData = data
+  if (data.pratica_chave && typeof data.pratica_chave === 'object') {
+    // Se tem um wrapper com pratica_chave, mesclar o wrapper com o conteúdo
+    sourceData = {
+      ...data,
+      ...data.pratica_chave
     }
   }
 
-  // Buscar e normalizar dados
+  // Estrutura exata como jsonOutput no criar prática
   const normalized = {
-    id: getField(data, 'id', '_id') || Date.now(),
-    titulo: getField(data, 'titulo', 'title', 'praticaChave', 'pratica_chave') || 'Sem título',
-    icone: getField(data, 'icone', 'icon') || '🎯',
-    status: getField(data, 'status') || 'ativo',
+    // Campos para identificação (sidebar + modal)
+    id: getField(sourceData, 'id', '_id') || Date.now(),
+    titulo: getField(sourceData, 'titulo', 'title', 'praticaChave', 'pratica_chave') || 'Sem título',
+    icone: getField(sourceData, 'icone', 'icon') || '🎯',
+    status: getField(sourceData, 'status') || 'ativo',
 
-    // Campos de conteúdo principal
-    praticaChave: getField(data, 'praticaChave', 'pratica_chave', 'titulo', 'title') || '',
-    objetivos: getField(data, 'objetivos', 'objectives', 'objetivo', 'goals') || '',
-    publicoAlvo: getField(data, 'publicoAlvo', 'publico_alvo', 'publicAlvo', 'target_audience', 'audience') || '',
-    aprendizado: getField(data, 'aprendizado', 'aprendizados', 'learning', 'lessons') || '',
+    // Estrutura exata do jsonOutput
+    praticaChave: getField(sourceData, 'praticaChave', 'pratica_chave', 'titulo', 'title') || '',
+    objetivos: getField(sourceData, 'objetivos', 'objectives', 'objetivo', 'goals') || '',
+    publicoAlvo: getField(sourceData, 'publicoAlvo', 'publico_alvo', 'publicAlvo', 'target_audience', 'audience') || '',
+    aprendizado: getField(sourceData, 'aprendizado', 'aprendizados', 'learning', 'lessons') || '',
 
-    // Arrays - com múltiplas variações de nomes
+    // Arrays com mesma estrutura esperada
     meioacoes: normalizeArray(
-      getField(data, 'meioacoes', 'meio_acoes', 'meioAcoes', 'means_actions', 'meios_acoes', 'meio_acao', 'meioacao')
+      getField(sourceData, 'meioacoes', 'meio_acoes', 'meioAcoes', 'means_actions', 'meios_acoes', 'meio_acao', 'meioacao')
     ),
     periodicidade: normalizeArray(
-      getField(data, 'periodicidade', 'periodicidades', 'periodicity', 'frequencia', 'frequencias')
+      getField(sourceData, 'periodicidade', 'periodicidades', 'periodicity', 'frequencia', 'frequencias')
     ),
     procedimentos: normalizeArray(
-      getField(data, 'procedimentos', 'procedures', 'plano_atividades', 'planoAtividades', 'activities')
+      getField(sourceData, 'procedimentos', 'procedures', 'plano_atividades', 'planoAtividades', 'activities')
     ),
     metricas: normalizeArray(
-      getField(data, 'metricas', 'metrics', 'métricas', 'indicadores', 'indicators')
+      getField(sourceData, 'metricas', 'metrics', 'métricas', 'indicadores', 'indicators')
     ),
     evidencias: normalizeArray(
-      getField(data, 'evidencias', 'evidências', 'evidence', 'proofs', 'documents')
-    ),
-
-    // Preservar dados originais como fallback (sem duplicação de chaves já normalizadas)
-    ...data
+      getField(sourceData, 'evidencias', 'evidências', 'evidence', 'proofs', 'documents')
+    )
   }
 
   console.log(`📦 Prática normalizada: ${normalized.titulo}`)
-  debugLog('meioacoes', normalized.meioacoes)
-  debugLog('periodicidade', normalized.periodicidade)
-  debugLog('procedimentos', normalized.procedimentos)
-  debugLog('metricas', normalized.metricas)
-  debugLog('evidencias', normalized.evidencias)
+  console.log('📋 Estrutura:', {
+    praticaChave: normalized.praticaChave,
+    objetivos: normalized.objetivos ? '✓' : '✗',
+    meioacoes: normalized.meioacoes.length,
+    publicoAlvo: normalized.publicoAlvo ? '✓' : '✗',
+    periodicidade: normalized.periodicidade.length,
+    procedimentos: normalized.procedimentos.length,
+    metricas: normalized.metricas.length,
+    aprendizado: normalized.aprendizado ? '✓' : '✗',
+    evidencias: normalized.evidencias.length
+  })
 
   return normalized
 }
@@ -2016,7 +2024,7 @@ function Dashboard() {
                                     </div>
                                   )}
                                   <div>
-                                    <strong style={{ color: 'var(--primary)' }}>Periodicidade:</strong> {item.texto || item.periodicidade}
+                                    <strong style={{ color: 'var(--primary)' }}>Periodicidade:</strong> {item.texto}
                                   </div>
                                 </div>
                               </div>
