@@ -671,11 +671,21 @@ function Dashboard() {
         praticas = response.data.praticas
       }
 
-      // Normalizar os dados
-      praticas = praticas.map(item => normalizePratica(item))
+      console.log('📥 Dados brutos da API para evento:', praticas)
 
-      setEventoPraticasChaves(praticas)
+      // Normalizar os dados
+      praticas = praticas.map(item => {
+        const normalized = normalizePratica(item)
+        console.log('📦 Item original:', item)
+        console.log('📦 Item normalizado:', normalized)
+        console.log('📦 Meioacoes do item normalizado:', normalized.meioacoes)
+        console.log('📦 Metricas do item normalizado:', normalized.metricas)
+        return normalized
+      })
+
       console.log('✅ Práticas chaves carregadas para evento:', praticas.length)
+      console.log('📊 Todas as práticas:', praticas)
+      setEventoPraticasChaves(praticas)
     } catch (err) {
       console.error('❌ Erro ao carregar práticas chaves:', err)
       setMessageModalType('error')
@@ -2981,6 +2991,9 @@ function Dashboard() {
 
                             console.log('🎯 Prática Selecionada:', practicaSelecionada)
                             console.log('📋 Meioacoes:', practicaSelecionada.meioacoes)
+                            console.log('📋 Metricas:', practicaSelecionada.metricas)
+                            console.log('📋 Todas as chaves da prática:', Object.keys(practicaSelecionada))
+                            console.log('📋 Estrutura completa:', JSON.stringify(practicaSelecionada, null, 2))
 
                             return (
                               <>
