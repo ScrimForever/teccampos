@@ -10,6 +10,9 @@ import './Dashboard.css'
 const normalizePratica = (data) => {
   if (!data || typeof data !== 'object') return null
 
+  console.log('🔍 NORMALIZANDO - Dados originais recebidos:', data)
+  console.log('🔍 NORMALIZANDO - Chaves disponíveis:', Object.keys(data))
+
   // Helper para encontrar valor em múltiplas variações de chave (camelCase, snake_case, etc)
   const getField = (obj, ...keys) => {
     if (!obj || typeof obj !== 'object') return undefined
@@ -49,12 +52,19 @@ const normalizePratica = (data) => {
   // Se os dados estão encapsulados dentro de uma chave pratica_chave, desencapsular
   let sourceData = data
   if (data.pratica_chave && typeof data.pratica_chave === 'object') {
+    console.log('🔍 NORMALIZANDO - Detectado pratica_chave aninhado, desencapsulando...')
+    console.log('🔍 NORMALIZANDO - Conteúdo de pratica_chave:', data.pratica_chave)
     // Se tem um wrapper com pratica_chave, mesclar o wrapper com o conteúdo
     sourceData = {
       ...data,
       ...data.pratica_chave
     }
   }
+
+  console.log('🔍 NORMALIZANDO - Source data após desencapsulamento:', sourceData)
+  console.log('🔍 NORMALIZANDO - Procurando meioacoes em:', ['meioacoes', 'meio_acoes', 'meioAcoes', 'means_actions', 'meios_acoes', 'meio_acao', 'meioacao'])
+  const meioacoesEncontrado = getField(sourceData, 'meioacoes', 'meio_acoes', 'meioAcoes', 'means_actions', 'meios_acoes', 'meio_acao', 'meioacao')
+  console.log('🔍 NORMALIZANDO - Meioacoes encontrado:', meioacoesEncontrado)
 
   // Estrutura exata como jsonOutput no criar prática
   const normalized = {
@@ -208,6 +218,8 @@ function Dashboard() {
     metricas: {}, // { metricaId: valor }
     evidencias: [] // array de arquivos
   })
+  const [showEventoJsonModal, setShowEventoJsonModal] = useState(false)
+  const [eventoJsonOutput, setEventoJsonOutput] = useState(null)
 
   useEffect(() => {
     // Save current section to localStorage whenever it changes
@@ -673,18 +685,36 @@ function Dashboard() {
 
       console.log('📥 Dados brutos da API para evento:', praticas)
 
-      // Normalizar os dados
-      praticas = praticas.map(item => {
-        const normalized = normalizePratica(item)
-        console.log('📦 Item original:', item)
-        console.log('📦 Item normalizado:', normalized)
-        console.log('📦 Meioacoes do item normalizado:', normalized.meioacoes)
-        console.log('📦 Metricas do item normalizado:', normalized.metricas)
-        return normalized
-      })
+      // Normalizar os dados - usar mesma lógica que a sidebar
+      praticas = praticas
+        .map(item => {
+          // Se item tem campo pratica_chave, mesclar com dados do wrapper (mesma lógica da sidebar)
+          if (item && item.pratica_chave && typeof item.pratica_chave === 'object') {
+            const merged = {
+              id: item.id,
+              titulo: item.titulo,
+              icone: item.icone,
+              status: item.status,
+              ...item.pratica_chave
+            }
+            return normalizePratica(merged)
+          }
+          return normalizePratica(item)
+        })
+        .filter(p => p !== null)
+        .map(item => {
+          console.log('📦 Item normalizado:', item)
+          console.log('📦 Meioacoes:', item.meioacoes?.length || 0)
+          console.log('📦 Metricas:', item.metricas?.length || 0)
+          return item
+        })
 
       console.log('✅ Práticas chaves carregadas para evento:', praticas.length)
       console.log('📊 Todas as práticas:', praticas)
+      console.log('🔍 Verificando meioacoes em cada prática:')
+      praticas.forEach((p, idx) => {
+        console.log(`  [${idx}] ${p.titulo}: meioacoes=${p.meioacoes?.length || 0}, metricas=${p.metricas?.length || 0}`)
+      })
       setEventoPraticasChaves(praticas)
     } catch (err) {
       console.error('❌ Erro ao carregar práticas chaves:', err)
@@ -720,20 +750,55 @@ function Dashboard() {
       return
     }
 
+    // Encontrar a prática selecionada para pegar mais contexto
+    const practicaSelecionada = eventoPraticasChaves.find(p => String(p.id) === String(novoEvento.praticaChaveId))
+
+    // Gerar o JSON de output do evento
+    const jsonOutput = {
+      praticaChaveId: novoEvento.praticaChaveId,
+      practicaChaveNome: practicaSelecionada?.titulo || '',
+      titulo: novoEvento.titulo,
+      descricao: novoEvento.descricao,
+      objetivos: novoEvento.objetivos,
+      publicoAlvo: novoEvento.publicoAlvo,
+      periodicidade: novoEvento.periodicidade,
+      aprendizado: novoEvento.aprendizado,
+      meioacoes: novoEvento.meioacoes,
+      metricas: novoEvento.metricas,
+      evidencias: novoEvento.evidencias.length > 0 ? novoEvento.evidencias.map(f => f.name) : []
+    }
+
+    console.log('=== JSON do Evento ===')
+    console.log(JSON.stringify(jsonOutput, null, 2))
+    console.log('=======================')
+
+    // Mostrar modal de visualização do JSON
+    setEventoJsonOutput(jsonOutput)
+    setShowEventoJsonModal(true)
+  }
+
+  const handleConfirmEventoJson = async () => {
     try {
       setLoadingEventoPraticas(true)
 
       const eventoData = {
         pratica_chave_id: novoEvento.praticaChaveId,
         titulo: novoEvento.titulo,
-        descricao: novoEvento.descricao
+        descricao: novoEvento.descricao,
+        objetivos: novoEvento.objetivos,
+        publico_alvo: novoEvento.publicoAlvo,
+        periodicidade: novoEvento.periodicidade,
+        aprendizado: novoEvento.aprendizado,
+        meios_acoes: novoEvento.meioacoes,
+        metricas: novoEvento.metricas
       }
 
-      console.log('📤 Criando evento:', eventoData)
+      console.log('📤 Criando evento com dados:', eventoData)
       const response = await api.post('/evento', eventoData)
 
       console.log('✅ Evento criado com sucesso!')
 
+      setShowEventoJsonModal(false)
       setMessageModalType('success')
       setMessageModalContent('Evento criado com sucesso!')
       setShowMessageModal(true)
@@ -2985,7 +3050,7 @@ function Dashboard() {
 
                           {/* Campos Dinâmicos - Aparecem quando prática é selecionada */}
                           {novoEvento.praticaChaveId && (() => {
-                            const practicaSelecionada = eventoPraticasChaves.find(p => p.id == novoEvento.praticaChaveId)
+                            const practicaSelecionada = eventoPraticasChaves.find(p => String(p.id) === String(novoEvento.praticaChaveId))
 
                             if (!practicaSelecionada) return null
 
@@ -3300,6 +3365,79 @@ function Dashboard() {
                         disabled={loadingEventoPraticas}
                       >
                         {loadingEventoPraticas ? 'Criando...' : 'Criar Evento'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Modal de Visualização do JSON do Evento */}
+              {showEventoJsonModal && (
+                <div className="modal-overlay">
+                  <div className="modal" style={{ maxWidth: '700px', maxHeight: '85vh' }}>
+                    <div className="modal-header">
+                      <h3>📋 Prévia do Evento</h3>
+                      <button
+                        className="modal-close"
+                        onClick={() => setShowEventoJsonModal(false)}
+                      >
+                        ✕
+                      </button>
+                    </div>
+
+                    <div className="modal-content-body" style={{ maxHeight: 'calc(85vh - 150px)', overflowY: 'auto', padding: '20px' }}>
+                      <div style={{
+                        backgroundColor: '#f5f5f5',
+                        border: '1px solid #ddd',
+                        borderRadius: '6px',
+                        padding: '15px',
+                        fontFamily: 'monospace',
+                        fontSize: '12px',
+                        lineHeight: '1.6',
+                        color: '#333',
+                        overflowX: 'auto',
+                        whiteSpace: 'pre-wrap',
+                        wordBreak: 'break-word'
+                      }}>
+                        {JSON.stringify(eventoJsonOutput, null, 2)}
+                      </div>
+
+                      <div style={{
+                        marginTop: '20px',
+                        padding: '15px',
+                        backgroundColor: '#e7f3ff',
+                        border: '1px solid #b3d9ff',
+                        borderRadius: '6px',
+                        color: '#004085',
+                        fontSize: '13px',
+                        lineHeight: '1.5'
+                      }}>
+                        <p style={{ margin: '0 0 10px 0' }}>
+                          <strong>ℹ️ Revise os dados antes de confirmar:</strong>
+                        </p>
+                        <ul style={{ margin: '0', paddingLeft: '20px' }}>
+                          <li>Prática Chave: <strong>{eventoJsonOutput?.practicaChaveNome}</strong></li>
+                          <li>Título: <strong>{eventoJsonOutput?.titulo}</strong></li>
+                          <li>Meio/Ações preenchidos: <strong>{Object.keys(eventoJsonOutput?.meioacoes || {}).length}</strong></li>
+                          <li>Métricas preenchidas: <strong>{Object.keys(eventoJsonOutput?.metricas || {}).length}</strong></li>
+                          <li>Evidências anexadas: <strong>{eventoJsonOutput?.evidencias?.length || 0}</strong></li>
+                        </ul>
+                      </div>
+                    </div>
+
+                    <div className="modal-footer">
+                      <button
+                        className="btn btn-secondary"
+                        onClick={() => setShowEventoJsonModal(false)}
+                      >
+                        Voltar
+                      </button>
+                      <button
+                        className="btn btn-primary"
+                        onClick={handleConfirmEventoJson}
+                        disabled={loadingEventoPraticas}
+                      >
+                        {loadingEventoPraticas ? 'Criando...' : 'Confirmar e Criar Evento'}
                       </button>
                     </div>
                   </div>
