@@ -21,6 +21,23 @@ const normalizePratica = (data) => {
     return undefined
   }
 
+  // Helper para converter valor para string, extraindo de objetos se necessário
+  const getStringField = (obj, ...keys) => {
+    const value = getField(obj, ...keys)
+
+    if (typeof value === 'string') return value
+
+    // Se for um objeto, tenta extrair um campo string
+    if (value && typeof value === 'object') {
+      // Procura por campos comuns que contêm texto
+      const stringField = value.titulo || value.title || value.name || value.pratica_chave || value.praticaChave || ''
+      if (typeof stringField === 'string') return stringField
+      return String(stringField) || ''
+    }
+
+    return ''
+  }
+
   // Helper para normalizar arrays de objetos
   const normalizeArray = (arr) => {
     if (!Array.isArray(arr)) return []
@@ -43,15 +60,15 @@ const normalizePratica = (data) => {
   const normalized = {
     // Campos para identificação (sidebar + modal)
     id: getField(sourceData, 'id', '_id') || Date.now(),
-    titulo: getField(sourceData, 'titulo', 'title', 'praticaChave', 'pratica_chave') || 'Sem título',
-    icone: getField(sourceData, 'icone', 'icon') || '🎯',
-    status: getField(sourceData, 'status') || 'ativo',
+    titulo: getStringField(sourceData, 'titulo', 'title', 'praticaChave', 'pratica_chave') || 'Sem título',
+    icone: getStringField(sourceData, 'icone', 'icon') || '🎯',
+    status: getStringField(sourceData, 'status') || 'ativo',
 
     // Estrutura exata do jsonOutput
-    praticaChave: getField(sourceData, 'praticaChave', 'pratica_chave', 'titulo', 'title') || '',
-    objetivos: getField(sourceData, 'objetivos', 'objectives', 'objetivo', 'goals') || '',
-    publicoAlvo: getField(sourceData, 'publicoAlvo', 'publico_alvo', 'publicAlvo', 'target_audience', 'audience') || '',
-    aprendizado: getField(sourceData, 'aprendizado', 'aprendizados', 'learning', 'lessons') || '',
+    praticaChave: getStringField(sourceData, 'praticaChave', 'pratica_chave', 'titulo', 'title') || '',
+    objetivos: getStringField(sourceData, 'objetivos', 'objectives', 'objetivo', 'goals') || '',
+    publicoAlvo: getStringField(sourceData, 'publicoAlvo', 'publico_alvo', 'publicAlvo', 'target_audience', 'audience') || '',
+    aprendizado: getStringField(sourceData, 'aprendizado', 'aprendizados', 'learning', 'lessons') || '',
 
     // Arrays com mesma estrutura esperada
     meioacoes: normalizeArray(
@@ -176,6 +193,14 @@ function Dashboard() {
   const [praticasChaves, setPraticasChaves] = useState([])
   const [loadingPraticas, setLoadingPraticas] = useState(false)
   const [errorPraticas, setErrorPraticas] = useState(null)
+  const [showNovoEventoModal, setShowNovoEventoModal] = useState(false)
+  const [eventoPraticasChaves, setEventoPraticasChaves] = useState([])
+  const [loadingEventoPraticas, setLoadingEventoPraticas] = useState(false)
+  const [novoEvento, setNovoEvento] = useState({
+    praticaChaveId: '',
+    titulo: '',
+    descricao: ''
+  })
 
   useEffect(() => {
     // Save current section to localStorage whenever it changes
@@ -622,6 +647,82 @@ function Dashboard() {
       evidencias: []
     })
     setShowNovaParticaModal(false)
+  }
+
+  const handleOpenNovoEventoModal = async () => {
+    try {
+      setLoadingEventoPraticas(true)
+      setShowNovoEventoModal(true)
+
+      // Carregar as práticas chaves do endpoint
+      const response = await api.get('/pratica-chave')
+
+      let praticas = []
+      if (Array.isArray(response.data)) {
+        praticas = response.data
+      } else if (response.data && Array.isArray(response.data.praticas)) {
+        praticas = response.data.praticas
+      }
+
+      // Normalizar os dados
+      praticas = praticas.map(item => normalizePratica(item))
+
+      setEventoPraticasChaves(praticas)
+      console.log('✅ Práticas chaves carregadas para evento:', praticas.length)
+    } catch (err) {
+      console.error('❌ Erro ao carregar práticas chaves:', err)
+      setMessageModalType('error')
+      setMessageModalContent(err.message || 'Erro ao carregar práticas chaves')
+      setShowMessageModal(true)
+    } finally {
+      setLoadingEventoPraticas(false)
+    }
+  }
+
+  const handleCancelNovoEvento = () => {
+    setNovoEvento({
+      praticaChaveId: '',
+      titulo: '',
+      descricao: ''
+    })
+    setShowNovoEventoModal(false)
+  }
+
+  const handleCreateEvento = async () => {
+    if (!novoEvento.praticaChaveId) {
+      setMessageModalType('error')
+      setMessageModalContent('Selecione uma prática chave')
+      setShowMessageModal(true)
+      return
+    }
+
+    try {
+      setLoadingEventoPraticas(true)
+
+      const eventoData = {
+        pratica_chave_id: novoEvento.praticaChaveId,
+        titulo: novoEvento.titulo,
+        descricao: novoEvento.descricao
+      }
+
+      console.log('📤 Criando evento:', eventoData)
+      const response = await api.post('/evento', eventoData)
+
+      console.log('✅ Evento criado com sucesso!')
+
+      setMessageModalType('success')
+      setMessageModalContent('Evento criado com sucesso!')
+      setShowMessageModal(true)
+
+      handleCancelNovoEvento()
+    } catch (error) {
+      console.error('❌ Erro ao criar evento:', error)
+      setMessageModalType('error')
+      setMessageModalContent(error.message || 'Erro ao criar evento. Tente novamente.')
+      setShowMessageModal(true)
+    } finally {
+      setLoadingEventoPraticas(false)
+    }
   }
 
   const handleViewPlan = (plan) => {
@@ -2079,6 +2180,23 @@ function Dashboard() {
 
                 {currentAtividadesSubmenu === 'eventos' && (
                   <div className="eventos-container">
+                    <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'flex-end' }}>
+                      <button
+                        className="btn btn-primary"
+                        onClick={handleOpenNovoEventoModal}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          padding: '12px 24px',
+                          fontSize: '14px'
+                        }}
+                      >
+                        <span>➕</span>
+                        <span>Adicionar Evento</span>
+                      </button>
+                    </div>
+
                     <div style={{
                       display: 'flex',
                       alignItems: 'center',
@@ -2765,6 +2883,126 @@ function Dashboard() {
                       </div>
                     </div>
                   )}
+                </div>
+              )}
+
+              {showNovoEventoModal && (
+                <div className="modal-overlay">
+                  <div className="modal-content" style={{ maxWidth: '500px' }}>
+                    <div className="modal-header">
+                      <h2>Adicionar Novo Evento</h2>
+                      <button
+                        className="modal-close"
+                        onClick={handleCancelNovoEvento}
+                      >
+                        ✕
+                      </button>
+                    </div>
+
+                    <div className="modal-content-body">
+                      {loadingEventoPraticas && eventoPraticasChaves.length === 0 ? (
+                        <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text)' }}>
+                          <p>Carregando práticas chaves...</p>
+                        </div>
+                      ) : (
+                        <>
+                          {/* Seletor de Prática Chave */}
+                          <div className="form-group">
+                            <label htmlFor="evento-pratica-select">Selecione uma Prática Chave *</label>
+                            <select
+                              id="evento-pratica-select"
+                              className="form-input"
+                              value={novoEvento.praticaChaveId}
+                              onChange={(e) => setNovoEvento({
+                                ...novoEvento,
+                                praticaChaveId: e.target.value
+                              })}
+                            >
+                              <option value="">-- Selecione uma prática chave --</option>
+                              {eventoPraticasChaves.map((pratica) => (
+                                <option key={pratica.id} value={pratica.id}>
+                                  {pratica.icone} {pratica.titulo}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          {/* Título do Evento */}
+                          <div className="form-group">
+                            <label htmlFor="evento-titulo">Título do Evento</label>
+                            <input
+                              id="evento-titulo"
+                              type="text"
+                              className="form-input"
+                              placeholder="Digite o título do evento"
+                              value={novoEvento.titulo}
+                              onChange={(e) => setNovoEvento({
+                                ...novoEvento,
+                                titulo: e.target.value
+                              })}
+                            />
+                          </div>
+
+                          {/* Descrição do Evento */}
+                          <div className="form-group">
+                            <label htmlFor="evento-descricao">Descrição</label>
+                            <textarea
+                              id="evento-descricao"
+                              className="form-input form-textarea"
+                              placeholder="Digite a descrição do evento"
+                              value={novoEvento.descricao}
+                              onChange={(e) => setNovoEvento({
+                                ...novoEvento,
+                                descricao: e.target.value
+                              })}
+                              rows="4"
+                            />
+                          </div>
+
+                          {/* Informações da Prática Selecionada */}
+                          {novoEvento.praticaChaveId && (
+                            <div style={{
+                              padding: '15px',
+                              backgroundColor: 'var(--light)',
+                              borderRadius: '8px',
+                              marginBottom: '16px',
+                              borderLeft: '4px solid var(--primary-light)'
+                            }}>
+                              <h4 style={{ margin: '0 0 10px 0', color: 'var(--primary)', fontSize: '14px' }}>
+                                Prática Selecionada:
+                              </h4>
+                              {eventoPraticasChaves.find(p => p.id == novoEvento.praticaChaveId) && (
+                                <div>
+                                  <p style={{ margin: '0 0 8px 0', fontSize: '14px' }}>
+                                    <strong>Nome:</strong> {eventoPraticasChaves.find(p => p.id == novoEvento.praticaChaveId).titulo}
+                                  </p>
+                                  <p style={{ margin: '0', fontSize: '13px', color: '#666', lineHeight: '1.4' }}>
+                                    <strong>Descrição:</strong> {eventoPraticasChaves.find(p => p.id == novoEvento.praticaChaveId).praticaChave || 'N/A'}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+
+                    <div className="modal-footer">
+                      <button
+                        className="btn btn-secondary"
+                        onClick={handleCancelNovoEvento}
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        className="btn btn-primary"
+                        onClick={handleCreateEvento}
+                        disabled={loadingEventoPraticas}
+                      >
+                        {loadingEventoPraticas ? 'Criando...' : 'Criar Evento'}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               )}
               </div>
