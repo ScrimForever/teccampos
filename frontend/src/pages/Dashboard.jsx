@@ -199,7 +199,14 @@ function Dashboard() {
   const [novoEvento, setNovoEvento] = useState({
     praticaChaveId: '',
     titulo: '',
-    descricao: ''
+    descricao: '',
+    objetivos: '',
+    publicoAlvo: '',
+    periodicidade: '',
+    aprendizado: '',
+    meioacoes: {}, // { meioacaoId: valor }
+    metricas: {}, // { metricaId: valor }
+    evidencias: [] // array de arquivos
   })
 
   useEffect(() => {
@@ -683,7 +690,14 @@ function Dashboard() {
     setNovoEvento({
       praticaChaveId: '',
       titulo: '',
-      descricao: ''
+      descricao: '',
+      objetivos: '',
+      publicoAlvo: '',
+      periodicidade: '',
+      aprendizado: '',
+      meioacoes: {},
+      metricas: {},
+      evidencias: []
     })
     setShowNovoEventoModal(false)
   }
@@ -2888,7 +2902,7 @@ function Dashboard() {
 
               {showNovoEventoModal && (
                 <div className="modal-overlay">
-                  <div className="modal-content" style={{ maxWidth: '500px' }}>
+                  <div className="modal-content" style={{ maxWidth: '600px', maxHeight: '85vh' }}>
                     <div className="modal-header">
                       <h2>Adicionar Novo Evento</h2>
                       <button
@@ -2899,7 +2913,7 @@ function Dashboard() {
                       </button>
                     </div>
 
-                    <div className="modal-content-body">
+                    <div className="modal-content-body" style={{ maxHeight: 'calc(85vh - 150px)', overflowY: 'auto' }}>
                       {loadingEventoPraticas && eventoPraticasChaves.length === 0 ? (
                         <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text)' }}>
                           <p>Carregando práticas chaves...</p>
@@ -2959,30 +2973,257 @@ function Dashboard() {
                             />
                           </div>
 
-                          {/* Informações da Prática Selecionada */}
-                          {novoEvento.praticaChaveId && (
-                            <div style={{
-                              padding: '15px',
-                              backgroundColor: 'var(--light)',
-                              borderRadius: '8px',
-                              marginBottom: '16px',
-                              borderLeft: '4px solid var(--primary-light)'
-                            }}>
-                              <h4 style={{ margin: '0 0 10px 0', color: 'var(--primary)', fontSize: '14px' }}>
-                                Prática Selecionada:
-                              </h4>
-                              {eventoPraticasChaves.find(p => p.id == novoEvento.praticaChaveId) && (
-                                <div>
+                          {/* Campos Dinâmicos - Aparecem quando prática é selecionada */}
+                          {novoEvento.praticaChaveId && (() => {
+                            const practicaSelecionada = eventoPraticasChaves.find(p => p.id == novoEvento.praticaChaveId)
+
+                            if (!practicaSelecionada) return null
+
+                            return (
+                              <>
+                                {/* Informações da Prática Selecionada */}
+                                <div style={{
+                                  padding: '15px',
+                                  backgroundColor: 'var(--light)',
+                                  borderRadius: '8px',
+                                  marginBottom: '20px',
+                                  borderLeft: '4px solid var(--primary-light)'
+                                }}>
+                                  <h4 style={{ margin: '0 0 10px 0', color: 'var(--primary)', fontSize: '14px' }}>
+                                    Prática Selecionada:
+                                  </h4>
                                   <p style={{ margin: '0 0 8px 0', fontSize: '14px' }}>
-                                    <strong>Nome:</strong> {eventoPraticasChaves.find(p => p.id == novoEvento.praticaChaveId).titulo}
+                                    <strong>Nome:</strong> {practicaSelecionada.titulo}
                                   </p>
                                   <p style={{ margin: '0', fontSize: '13px', color: '#666', lineHeight: '1.4' }}>
-                                    <strong>Descrição:</strong> {eventoPraticasChaves.find(p => p.id == novoEvento.praticaChaveId).praticaChave || 'N/A'}
+                                    <strong>Descrição:</strong> {practicaSelecionada.praticaChave || 'N/A'}
                                   </p>
                                 </div>
-                              )}
-                            </div>
-                          )}
+
+                                {/* Objetivos */}
+                                <div className="form-group">
+                                  <label htmlFor="evento-objetivos">Objetivos</label>
+                                  <textarea
+                                    id="evento-objetivos"
+                                    className="form-input form-textarea"
+                                    placeholder="Digite os objetivos do evento"
+                                    value={novoEvento.objetivos}
+                                    onChange={(e) => setNovoEvento({
+                                      ...novoEvento,
+                                      objetivos: e.target.value
+                                    })}
+                                    rows="3"
+                                  />
+                                </div>
+
+                                {/* Meio/Ação - Inputs dinâmicos */}
+                                {practicaSelecionada.meioacoes && practicaSelecionada.meioacoes.length > 0 && (
+                                  <div className="form-group">
+                                    <label>Meio/Ação</label>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                      {practicaSelecionada.meioacoes.map((meio) => (
+                                        <div key={meio.id}>
+                                          <label style={{ fontSize: '13px', color: 'var(--text)', marginBottom: '6px', display: 'block' }}>
+                                            <strong>{meio.meio}</strong> - {meio.acao.substring(0, 50)}...
+                                          </label>
+                                          <input
+                                            type="text"
+                                            className="form-input"
+                                            placeholder={`Digite dados para: ${meio.meio}`}
+                                            value={novoEvento.meioacoes[meio.id] || ''}
+                                            onChange={(e) => setNovoEvento({
+                                              ...novoEvento,
+                                              meioacoes: {
+                                                ...novoEvento.meioacoes,
+                                                [meio.id]: e.target.value
+                                              }
+                                            })}
+                                          />
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Público Alvo */}
+                                <div className="form-group">
+                                  <label htmlFor="evento-publico-alvo">Público Alvo</label>
+                                  <input
+                                    id="evento-publico-alvo"
+                                    type="text"
+                                    className="form-input"
+                                    placeholder="Digite o público alvo"
+                                    value={novoEvento.publicoAlvo}
+                                    onChange={(e) => setNovoEvento({
+                                      ...novoEvento,
+                                      publicoAlvo: e.target.value
+                                    })}
+                                  />
+                                </div>
+
+                                {/* Periodicidade */}
+                                <div className="form-group">
+                                  <label htmlFor="evento-periodicidade">Periodicidade</label>
+                                  <input
+                                    id="evento-periodicidade"
+                                    type="text"
+                                    className="form-input"
+                                    placeholder="Ex: Mensalmente, Semanalmente, etc"
+                                    value={novoEvento.periodicidade}
+                                    onChange={(e) => setNovoEvento({
+                                      ...novoEvento,
+                                      periodicidade: e.target.value
+                                    })}
+                                  />
+                                </div>
+
+                                {/* Métricas - Inputs dinâmicos */}
+                                {practicaSelecionada.metricas && practicaSelecionada.metricas.length > 0 && (
+                                  <div className="form-group">
+                                    <label>Métricas</label>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                      {practicaSelecionada.metricas.map((metrica) => (
+                                        <div key={metrica.id}>
+                                          <label style={{ fontSize: '13px', color: 'var(--text)', marginBottom: '6px', display: 'block' }}>
+                                            <strong>{metrica.titulo}</strong>
+                                            {metrica.descricao && <span style={{ fontSize: '12px', color: '#666', marginLeft: '8px' }}>- {metrica.descricao.substring(0, 50)}</span>}
+                                          </label>
+                                          <input
+                                            type="text"
+                                            className="form-input"
+                                            placeholder={`Digite o valor para: ${metrica.titulo}`}
+                                            value={novoEvento.metricas[metrica.id] || ''}
+                                            onChange={(e) => setNovoEvento({
+                                              ...novoEvento,
+                                              metricas: {
+                                                ...novoEvento.metricas,
+                                                [metrica.id]: e.target.value
+                                              }
+                                            })}
+                                          />
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Aprendizado */}
+                                <div className="form-group">
+                                  <label htmlFor="evento-aprendizado">Aprendizado</label>
+                                  <textarea
+                                    id="evento-aprendizado"
+                                    className="form-input form-textarea"
+                                    placeholder="Digite os aprendizados obtidos"
+                                    value={novoEvento.aprendizado}
+                                    onChange={(e) => setNovoEvento({
+                                      ...novoEvento,
+                                      aprendizado: e.target.value
+                                    })}
+                                    rows="3"
+                                  />
+                                </div>
+
+                                {/* Upload de Evidências */}
+                                <div className="form-group">
+                                  <label htmlFor="evento-evidencias">Evidências (Arquivos)</label>
+                                  <div style={{
+                                    padding: '20px',
+                                    border: '2px dashed var(--border)',
+                                    borderRadius: '8px',
+                                    textAlign: 'center',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.3s',
+                                    backgroundColor: 'var(--light)'
+                                  }}
+                                    onDragOver={(e) => {
+                                      e.preventDefault()
+                                      e.currentTarget.style.backgroundColor = 'rgba(59, 130, 246, 0.1)'
+                                      e.currentTarget.style.borderColor = 'var(--primary-light)'
+                                    }}
+                                    onDragLeave={(e) => {
+                                      e.currentTarget.style.backgroundColor = 'var(--light)'
+                                      e.currentTarget.style.borderColor = 'var(--border)'
+                                    }}
+                                    onDrop={(e) => {
+                                      e.preventDefault()
+                                      e.currentTarget.style.backgroundColor = 'var(--light)'
+                                      const files = Array.from(e.dataTransfer.files)
+                                      setNovoEvento({
+                                        ...novoEvento,
+                                        evidencias: [...novoEvento.evidencias, ...files]
+                                      })
+                                    }}
+                                  >
+                                    <input
+                                      id="evento-evidencias"
+                                      type="file"
+                                      multiple
+                                      style={{ display: 'none' }}
+                                      onChange={(e) => {
+                                        const files = Array.from(e.target.files)
+                                        setNovoEvento({
+                                          ...novoEvento,
+                                          evidencias: [...novoEvento.evidencias, ...files]
+                                        })
+                                      }}
+                                    />
+                                    <label htmlFor="evento-evidencias" style={{ cursor: 'pointer', margin: 0 }}>
+                                      <p style={{ margin: '0 0 8px 0', fontSize: '14px', fontWeight: '600', color: 'var(--primary)' }}>
+                                        📎 Clique ou arraste arquivos aqui
+                                      </p>
+                                      <p style={{ margin: '0', fontSize: '12px', color: '#999' }}>
+                                        Formatos suportados: PDF, DOC, DOCX, XLS, XLSX, JPG, PNG
+                                      </p>
+                                    </label>
+                                  </div>
+
+                                  {/* Lista de Arquivos Selecionados */}
+                                  {novoEvento.evidencias.length > 0 && (
+                                    <div style={{ marginTop: '12px' }}>
+                                      <p style={{ margin: '0 0 8px 0', fontSize: '13px', fontWeight: '600', color: 'var(--primary)' }}>
+                                        Arquivos selecionados ({novoEvento.evidencias.length}):
+                                      </p>
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                        {novoEvento.evidencias.map((file, idx) => (
+                                          <div key={idx} style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'space-between',
+                                            padding: '10px 12px',
+                                            backgroundColor: '#f0fdf4',
+                                            borderRadius: '6px',
+                                            borderLeft: '3px solid var(--accent)'
+                                          }}>
+                                            <span style={{ fontSize: '13px', color: 'var(--text)' }}>
+                                              📄 {file.name}
+                                            </span>
+                                            <button
+                                              type="button"
+                                              onClick={() => setNovoEvento({
+                                                ...novoEvento,
+                                                evidencias: novoEvento.evidencias.filter((_, i) => i !== idx)
+                                              })}
+                                              style={{
+                                                background: 'none',
+                                                border: 'none',
+                                                color: 'var(--danger)',
+                                                cursor: 'pointer',
+                                                fontSize: '16px',
+                                                padding: 0
+                                              }}
+                                              title="Remover"
+                                            >
+                                              ✕
+                                            </button>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </>
+                            )
+                          })()}
                         </>
                       )}
                     </div>
