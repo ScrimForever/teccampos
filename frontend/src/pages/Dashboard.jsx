@@ -2979,6 +2979,9 @@ function Dashboard() {
 
                             if (!practicaSelecionada) return null
 
+                            console.log('🎯 Prática Selecionada:', practicaSelecionada)
+                            console.log('📋 Meioacoes:', practicaSelecionada.meioacoes)
+
                             return (
                               <>
                                 {/* Informações da Prática Selecionada */}
@@ -2995,8 +2998,12 @@ function Dashboard() {
                                   <p style={{ margin: '0 0 8px 0', fontSize: '14px' }}>
                                     <strong>Nome:</strong> {practicaSelecionada.titulo}
                                   </p>
-                                  <p style={{ margin: '0', fontSize: '13px', color: '#666', lineHeight: '1.4' }}>
+                                  <p style={{ margin: '0 0 8px 0', fontSize: '13px', color: '#666', lineHeight: '1.4' }}>
                                     <strong>Descrição:</strong> {practicaSelecionada.praticaChave || 'N/A'}
+                                  </p>
+                                  <p style={{ margin: '0', fontSize: '12px', color: '#999' }}>
+                                    <strong>Meio/Ações:</strong> {practicaSelecionada.meioacoes?.length || 0} |
+                                    <strong> Métricas:</strong> {practicaSelecionada.metricas?.length || 0}
                                   </p>
                                 </div>
 
@@ -3017,19 +3024,27 @@ function Dashboard() {
                                 </div>
 
                                 {/* Meio/Ação - Inputs dinâmicos */}
-                                {practicaSelecionada.meioacoes && practicaSelecionada.meioacoes.length > 0 && (
-                                  <div className="form-group">
-                                    <label>Meio/Ação</label>
+                                <div className="form-group">
+                                  <label>🔧 Meio/Ação</label>
+                                  {practicaSelecionada.meioacoes && practicaSelecionada.meioacoes.length > 0 ? (
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                                       {practicaSelecionada.meioacoes.map((meio) => (
-                                        <div key={meio.id}>
-                                          <label style={{ fontSize: '13px', color: 'var(--text)', marginBottom: '6px', display: 'block' }}>
-                                            <strong>{meio.meio}</strong> - {meio.acao.substring(0, 50)}...
+                                        <div key={meio.id} style={{
+                                          padding: '12px',
+                                          backgroundColor: '#f9fafb',
+                                          borderRadius: '8px',
+                                          borderLeft: '3px solid var(--primary-light)'
+                                        }}>
+                                          <label style={{ fontSize: '13px', color: 'var(--primary)', marginBottom: '8px', display: 'block', fontWeight: '600' }}>
+                                            {meio.meio}
                                           </label>
+                                          <p style={{ fontSize: '12px', color: '#666', margin: '0 0 8px 0', lineHeight: '1.4' }}>
+                                            <strong>Ação:</strong> {meio.acao}
+                                          </p>
                                           <input
                                             type="text"
                                             className="form-input"
-                                            placeholder={`Digite dados para: ${meio.meio}`}
+                                            placeholder={`Digite dados/resultado para: ${meio.meio}`}
                                             value={novoEvento.meioacoes[meio.id] || ''}
                                             onChange={(e) => setNovoEvento({
                                               ...novoEvento,
@@ -3042,8 +3057,19 @@ function Dashboard() {
                                         </div>
                                       ))}
                                     </div>
-                                  </div>
-                                )}
+                                  ) : (
+                                    <div style={{
+                                      padding: '16px',
+                                      backgroundColor: '#fef3c7',
+                                      borderRadius: '8px',
+                                      borderLeft: '3px solid var(--warning)',
+                                      fontSize: '13px',
+                                      color: '#92400e'
+                                    }}>
+                                      ⚠️ Nenhum Meio/Ação cadastrado para esta prática
+                                    </div>
+                                  )}
+                                </div>
 
                                 {/* Público Alvo */}
                                 <div className="form-group">
@@ -3078,20 +3104,29 @@ function Dashboard() {
                                 </div>
 
                                 {/* Métricas - Inputs dinâmicos */}
-                                {practicaSelecionada.metricas && practicaSelecionada.metricas.length > 0 && (
-                                  <div className="form-group">
-                                    <label>Métricas</label>
+                                <div className="form-group">
+                                  <label>📊 Métricas</label>
+                                  {practicaSelecionada.metricas && practicaSelecionada.metricas.length > 0 ? (
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                                       {practicaSelecionada.metricas.map((metrica) => (
-                                        <div key={metrica.id}>
-                                          <label style={{ fontSize: '13px', color: 'var(--text)', marginBottom: '6px', display: 'block' }}>
-                                            <strong>{metrica.titulo}</strong>
-                                            {metrica.descricao && <span style={{ fontSize: '12px', color: '#666', marginLeft: '8px' }}>- {metrica.descricao.substring(0, 50)}</span>}
+                                        <div key={metrica.id} style={{
+                                          padding: '12px',
+                                          backgroundColor: '#f9fafb',
+                                          borderRadius: '8px',
+                                          borderLeft: '3px solid var(--accent)'
+                                        }}>
+                                          <label style={{ fontSize: '13px', color: 'var(--primary)', marginBottom: '8px', display: 'block', fontWeight: '600' }}>
+                                            {metrica.titulo}
                                           </label>
+                                          {metrica.descricao && (
+                                            <p style={{ fontSize: '12px', color: '#666', margin: '0 0 8px 0', lineHeight: '1.4' }}>
+                                              {metrica.descricao}
+                                            </p>
+                                          )}
                                           <input
                                             type="text"
                                             className="form-input"
-                                            placeholder={`Digite o valor para: ${metrica.titulo}`}
+                                            placeholder={`Digite o valor/resultado para: ${metrica.titulo}`}
                                             value={novoEvento.metricas[metrica.id] || ''}
                                             onChange={(e) => setNovoEvento({
                                               ...novoEvento,
@@ -3104,8 +3139,19 @@ function Dashboard() {
                                         </div>
                                       ))}
                                     </div>
-                                  </div>
-                                )}
+                                  ) : (
+                                    <div style={{
+                                      padding: '16px',
+                                      backgroundColor: '#fef3c7',
+                                      borderRadius: '8px',
+                                      borderLeft: '3px solid var(--warning)',
+                                      fontSize: '13px',
+                                      color: '#92400e'
+                                    }}>
+                                      ⚠️ Nenhuma Métrica cadastrada para esta prática
+                                    </div>
+                                  )}
+                                </div>
 
                                 {/* Aprendizado */}
                                 <div className="form-group">
