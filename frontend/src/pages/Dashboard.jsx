@@ -2977,7 +2977,7 @@ function Dashboard() {
 
               {showNovoEventoModal && (
                 <div className="modal-overlay">
-                  <div className="modal-content" style={{ maxWidth: '600px', maxHeight: '85vh' }}>
+                  <div className="modal-content" style={{ maxWidth: '1024px', maxHeight: '85vh' }}>
                     <div className="modal-header">
                       <h2>Adicionar Novo Evento</h2>
                       <button
