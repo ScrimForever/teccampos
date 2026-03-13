@@ -5,8 +5,13 @@ from sqlalchemy import pool
 
 from alembic import context
 from infra.database import User, Base
-from domain.models.agenda import Agenda
-from domain.models.pratica_chave import PraticaChave
+from domain.models.planejamento_mercado_model import PlanejamentoMercadoModel
+from domain.models.planejamento_financeiro_model import PlanejamentoFinanceiroModel
+from domain.models.equipe_model import EquipeModel, MembroModel
+from domain.models.user_status_model import UserStatus
+from domain.models.questionario_model import QuestionarioModel
+
+
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

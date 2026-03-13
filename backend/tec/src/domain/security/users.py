@@ -9,6 +9,7 @@ from fastapi_users.authentication import (
 )
 from fastapi_users.db import SQLAlchemyUserDatabase
 from infra.database import User, get_user_db
+from repository.status.user_status_repository import UserStatusRepository
 
 SECRET = "SECRET"
 
@@ -19,6 +20,9 @@ class UserManager(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):
 
     async def on_after_register(self, user: User, request: Request | None = None):
         print(f"User {user.id} has registered.")
+        await UserStatusRepository().create_user_status_initial(user)
+
+
 
     async def on_after_forgot_password(
         self, user: User, token: str, request: Request | None = None

@@ -45,10 +45,15 @@ function Register() {
     setErrorMessage('')
 
     try {
-      const response = await api.post('/auth/register', {
+      const requestBody = {
         email,
         password,
-      })
+        is_incubated: true,
+      }
+
+      console.log('📤 Sending register request:', requestBody)
+      const response = await api.post('/auth/register', requestBody)
+      console.log('📥 Register response:', response)
 
       if (response.status === 201) {
         setSuccessMessage('Registro realizado com sucesso!')
@@ -69,7 +74,12 @@ function Register() {
         }, 3000)
       }
     } catch (err) {
-      setErrorMessage(err.message || 'Erro ao registrar. Tente novamente.')
+      console.error('❌ Register error:', err)
+      console.error('❌ Error response:', err.response)
+      console.error('❌ Error status:', err.response?.status)
+      console.error('❌ Error data:', err.response?.data)
+
+      setErrorMessage(err.response?.data?.detail || err.message || 'Erro ao registrar. Tente novamente.')
       const newFailureCount = failureCount + 1
       setFailureCount(newFailureCount)
 

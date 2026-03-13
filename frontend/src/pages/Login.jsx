@@ -27,50 +27,25 @@ function Login() {
     setLoading(true)
 
     try {
-      // Step 1: Login
-      console.log('🔐 Logging in...')
       await login(username, password)
-      console.log('✅ Login successful')
+      console.log('✅ Login successful, checking status...')
 
-      // Step 2: Check user status BEFORE any other action
-      console.log('🔄 Checking /users/me endpoint...')
-      const userResponse = await api.get('/users/me')
-      console.log('📦 Response from /users/me:', userResponse.data)
+      // Consultar o endpoint /status
+      const statusResponse = await api.get('/status')
+      console.log('📊 Status response:', statusResponse.data)
+      console.log('📌 status_type:', statusResponse.data?.status_type)
 
-      // Check user type FIRST
-      const isConsultor = userResponse.data?.is_consultor === true
-      console.log('👨‍💼 is_consultor:', isConsultor)
-
-      // If is_consultor, redirect directly to dashboard
-      if (isConsultor === true) {
-        console.log('✅ User is consultor - Redirecting to DASHBOARD')
-        navigate('/dashboard', { replace: true })
-        return
-      }
-
-      // Otherwise, check questionario status
-      const questionarioFinalizado = userResponse.data?.questionario_finalizado === true
-      console.log('📋 questionario_finalizado:', questionarioFinalizado)
-
-      // Step 3: Redirect based on questionnaire status
-      if (questionarioFinalizado === true) {
-        console.log('✅ Questionnaire is finalized - Redirecting to DASHBOARD')
-        navigate('/dashboard', { replace: true })
-      } else {
-        console.log('⏳ Questionnaire is NOT finalized - Redirecting to QUESTIONNAIRE FORM')
+      // Verificar se status_type é "in_progress"
+      if (statusResponse.data?.status_type === 'in_progress') {
+        console.log('➡️ Redirecting to questionario-form')
         navigate('/questionario-form', { replace: true })
+      } else {
+        console.log('➡️ Redirecting to dashboard')
+        navigate('/dashboard', { replace: true })
       }
     } catch (err) {
       console.error('❌ Login error:', err)
-
-      // Handle HTTP errors specifically
-      if (err.message.includes('HTTP error') || err.message.includes('status: 400')) {
-        setError('Não foi possível realizar login')
-      } else if (err.message.includes('Unauthorized')) {
-        setError('Credenciais inválidas')
-      } else {
-        setError(err.message || 'Não foi possível realizar login')
-      }
+      setError(err.message || 'Não foi possível realizar login')
       setLoading(false)
     }
   }

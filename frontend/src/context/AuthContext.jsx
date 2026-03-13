@@ -45,12 +45,6 @@ export function AuthProvider({ children }) {
       }
 
       api.setToken(token)
-
-      // Verify login
-      const verifyResponse = await api.get('/verification/verify-login')
-
-      // Always authenticate the user regardless of verification response
-      // Both true and false responses should allow access to questionario
       setIsAuthenticated(true)
       setUser({ email, token })
     } catch (error) {

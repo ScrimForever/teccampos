@@ -5,19 +5,18 @@ from uuid import UUID
 
 class UserRead(schemas.BaseUser[uuid.UUID]):
     id: UUID
-    is_consultor: bool
-    is_visualizador: bool
-    is_incubado: bool
-    questionario_finalizado: bool | None
+    is_consultant: bool
+    is_viewer: bool
+    is_incubated: bool
 
 
 class UserCreate(schemas.BaseUserCreate):
-    is_consultor: bool = False
-    is_visualizador: bool = False
-
+    is_consultant: bool = False
+    is_viewer: bool = False
+    is_incubated: bool = False
 
 
 
 class UserUpdate(schemas.BaseUserUpdate):
-    is_consultor: bool
-    is_visualizador: bool
+    is_consultant: bool
+    is_incubated: bool

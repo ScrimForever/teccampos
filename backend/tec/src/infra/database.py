@@ -7,7 +7,7 @@ from fastapi import Depends
 from fastapi_users.db import SQLAlchemyBaseUserTableUUID, SQLAlchemyUserDatabase
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-from sqlalchemy.types import JSON, DateTime
+from sqlalchemy.types import DateTime
 
 
 
@@ -16,12 +16,11 @@ class Base(DeclarativeBase):
 
 
 class User(SQLAlchemyBaseUserTableUUID, Base):
-    is_consultor: Mapped[bool] = mapped_column(default=False)
-    is_visualizador: Mapped[bool] = mapped_column(default=False)
-    is_incubado: Mapped[bool] = mapped_column(default=False)
-    questionario_json: Mapped[dict] = mapped_column(JSON, nullable=True)
-    questionario_finalizado: Mapped[bool] = mapped_column(default=False)
+    is_consultant: Mapped[bool] = mapped_column(default=False)
+    is_viewer: Mapped[bool] = mapped_column(default=False)
+    is_incubated: Mapped[bool] = mapped_column(default=False)
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), default=datetime.datetime.now())
+
 
 engine = create_async_engine(config.DATABASE_URL)
 async_session_maker = async_sessionmaker(engine, expire_on_commit=False)
