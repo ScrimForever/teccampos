@@ -1,6 +1,6 @@
 import datetime
 
-from sqlalchemy import Column, Integer, DateTime
+from sqlalchemy import Column, Integer, DateTime, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column
 
 
@@ -15,6 +15,7 @@ class PlanejamentoMercadoModel(Base):
     fornecedores: Mapped[str] = mapped_column(nullable=True)
     concorrentes: Mapped[str] = mapped_column(nullable=True)
     analise_acao: Mapped[str] = mapped_column(nullable=True)
+    usuario_associado: Mapped[str] = mapped_column(ForeignKey("user.email", onupdate="CASCADE", ondelete="CASCADE"), unique=True)
     upload_file_path: Mapped[str] = mapped_column(nullable=True)
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), default=datetime.datetime.now())
     updated_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), default=None, nullable=True)

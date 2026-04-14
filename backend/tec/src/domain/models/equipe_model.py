@@ -16,6 +16,7 @@ class MembroModel(Base):
     formacao_academica: Mapped[str] = mapped_column(nullable=True)
     experiencia: Mapped[str] = mapped_column(nullable=True)
     email: Mapped[str] = mapped_column(nullable=True, unique=True)
+    telefone: Mapped[str] = mapped_column(nullable=True)
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), default=datetime.datetime.now())
     updated_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), default=None, nullable=True)
 

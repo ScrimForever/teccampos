@@ -1,8 +1,8 @@
-"""startapp
+"""first commit
 
-Revision ID: e7ff9d72caff
+Revision ID: d3bb089d22ac
 Revises: 
-Create Date: 2026-01-13 19:19:46.687489
+Create Date: 2026-04-02 18:19:13.606511
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'e7ff9d72caff'
+revision: str = 'd3bb089d22ac'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -36,17 +36,6 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_planejamento_financeiro_id'), 'planejamento_financeiro', ['id'], unique=False)
-    op.create_table('planejamento_mercado',
-    sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('fornecedores', sa.String(), nullable=True),
-    sa.Column('concorrentes', sa.String(), nullable=True),
-    sa.Column('analise_acao', sa.String(), nullable=True),
-    sa.Column('upload_file_path', sa.String(), nullable=True),
-    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
-    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
-    sa.PrimaryKeyConstraint('id')
-    )
-    op.create_index(op.f('ix_planejamento_mercado_id'), 'planejamento_mercado', ['id'], unique=False)
     op.create_table('user',
     sa.Column('is_consultant', sa.Boolean(), nullable=False),
     sa.Column('is_viewer', sa.Boolean(), nullable=False),
@@ -67,6 +56,7 @@ def upgrade() -> None:
     sa.Column('formacao_academica', sa.String(), nullable=True),
     sa.Column('experiencia', sa.String(), nullable=True),
     sa.Column('email', sa.String(), nullable=True),
+    sa.Column('telefone', sa.String(), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('equipe_id', sa.Integer(), nullable=False),
@@ -75,9 +65,34 @@ def upgrade() -> None:
     sa.UniqueConstraint('email')
     )
     op.create_index(op.f('ix_membro_id'), 'membro', ['id'], unique=False)
+    op.create_table('planejamento_mercado',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('fornecedores', sa.String(), nullable=True),
+    sa.Column('concorrentes', sa.String(), nullable=True),
+    sa.Column('analise_acao', sa.String(), nullable=True),
+    sa.Column('usuario_associado', sa.String(length=320), nullable=False),
+    sa.Column('upload_file_path', sa.String(), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
+    sa.ForeignKeyConstraint(['usuario_associado'], ['user.email'], onupdate='CASCADE', ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('usuario_associado')
+    )
+    op.create_index(op.f('ix_planejamento_mercado_id'), 'planejamento_mercado', ['id'], unique=False)
+    op.create_table('user_status',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('user_email', sa.String(length=320), nullable=False),
+    sa.Column('status_type', sa.String(), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
+    sa.ForeignKeyConstraint(['user_email'], ['user.email'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_user_status_id'), 'user_status', ['id'], unique=False)
+    op.create_index(op.f('ix_user_status_user_email'), 'user_status', ['user_email'], unique=False)
     op.create_table('questionario',
     sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('user_associated', fastapi_users_db_sqlalchemy.generics.GUID(), nullable=False),
+    sa.Column('usuario_associado', sa.String(), nullable=False),
     sa.Column('nome_proponente', sa.String(), nullable=True),
     sa.Column('nome_negocio', sa.String(), nullable=True),
     sa.Column('setor_atuacao', sa.String(), nullable=True),
@@ -95,40 +110,29 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['equipe'], ['equipe.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['planejamento_financeiro'], ['planejamento_financeiro.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['planejamento_mercado'], ['planejamento_mercado.id'], ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['user_associated'], ['user.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('nome_negocio'),
-    sa.UniqueConstraint('nome_proponente')
+    sa.UniqueConstraint('nome_proponente'),
+    sa.UniqueConstraint('usuario_associado')
     )
     op.create_index(op.f('ix_questionario_id'), 'questionario', ['id'], unique=False)
-    op.create_table('user_status',
-    sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('user_email', sa.String(length=320), nullable=False),
-    sa.Column('status_type', sa.String(), nullable=False),
-    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
-    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
-    sa.ForeignKeyConstraint(['user_email'], ['user.email'], ),
-    sa.PrimaryKeyConstraint('id')
-    )
-    op.create_index(op.f('ix_user_status_id'), 'user_status', ['id'], unique=False)
-    op.create_index(op.f('ix_user_status_user_email'), 'user_status', ['user_email'], unique=False)
     # ### end Alembic commands ###
 
 
 def downgrade() -> None:
     """Downgrade schema."""
     # ### commands auto generated by Alembic - please adjust! ###
+    op.drop_index(op.f('ix_questionario_id'), table_name='questionario')
+    op.drop_table('questionario')
     op.drop_index(op.f('ix_user_status_user_email'), table_name='user_status')
     op.drop_index(op.f('ix_user_status_id'), table_name='user_status')
     op.drop_table('user_status')
-    op.drop_index(op.f('ix_questionario_id'), table_name='questionario')
-    op.drop_table('questionario')
+    op.drop_index(op.f('ix_planejamento_mercado_id'), table_name='planejamento_mercado')
+    op.drop_table('planejamento_mercado')
     op.drop_index(op.f('ix_membro_id'), table_name='membro')
     op.drop_table('membro')
     op.drop_index(op.f('ix_user_email'), table_name='user')
     op.drop_table('user')
-    op.drop_index(op.f('ix_planejamento_mercado_id'), table_name='planejamento_mercado')
-    op.drop_table('planejamento_mercado')
     op.drop_index(op.f('ix_planejamento_financeiro_id'), table_name='planejamento_financeiro')
     op.drop_table('planejamento_financeiro')
     op.drop_index(op.f('ix_equipe_id'), table_name='equipe')

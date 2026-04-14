@@ -17,7 +17,24 @@ membros_router = APIRouter(prefix="/membros", tags=["membros"])
 async def create_membro(
         membro: MembroInput,
         db: Annotated[AsyncSession, Depends(get_async_session)],
-        equipe_id: int,
+        equipeid: int,
         user: User = Depends(current_active_user),
     ):
-        return await MembrosRepository().create_membro_on_team(db=db, user=user, membro_object=membro)
+        return await MembrosRepository().create_membro_on_team(
+            db=db,
+            user=None,
+            membro_object=membro,
+            equipe_id=equipeid
+        )
+
+@membros_router.get("/{equipeid}")
+async def list_membros(
+        db: Annotated[AsyncSession, Depends(get_async_session)],
+        equipeid: int,
+        user: User = Depends(current_active_user),
+    ):
+        return await MembrosRepository().list_membros(
+            db=db,
+            user=user,
+            equipe_id=equipeid
+        )

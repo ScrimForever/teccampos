@@ -1,6 +1,8 @@
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from domain.schemas.user_status import UserStatusOutput
+from starlette.responses import JSONResponse
+
+from domain.schemas.user_status import UserStatusInput, UserStatusOutput
 from domain.models.user_status_model import UserStatus
 from loguru import logger
 from infra.database import get_async_session, User
@@ -59,5 +61,17 @@ class UserStatusRepository:
             await db.rollback()
             logger.success("Rollack confirmed")
 
-
+    async def set_new_status(self, user_status: UserStatusInput, db_session: AsyncSession):
+        logger.info(f"Setting new status to user: {user_status.user_email}")
+        try:
+            stmt = (
+                update(UserStatus).
+                where(UserStatus.user_email == user_status.user_email).
+                values(status_type=user_status.status_type)
+            )
+            await db_session.execute(stmt)
+            await db_session.commit()
+            return JSONResponse(content={"status": "success"}, status_code=200)
+        except Exception as e:
+            return JSONResponse(content={"status": "error"}, status_code=500)
 

@@ -13,7 +13,7 @@ class QuestionarioModel(Base):
     __tablename__ = "questionario"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_associated: Mapped[UUID] = mapped_column(ForeignKey("user.id", ondelete="CASCADE"))
+    usuario_associado: Mapped[str] = mapped_column(unique=True)
     nome_proponente: Mapped[str] = mapped_column(nullable=True, unique=True)
     nome_negocio: Mapped[str] = mapped_column(nullable=True, unique=True)
     setor_atuacao: Mapped[str] = mapped_column(nullable=True)

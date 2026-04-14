@@ -10,7 +10,7 @@ class QuestionarioSchema(BaseModel):
 class QuestionarioInput(QuestionarioSchema):
 
     nome_proponente: str | None = None
-    user_associated: UUID
+    usuario_associado: str = None
     nome_negocio: str | None = None
     setor_atuacao: str | None = None
     cnpj: str | None = None

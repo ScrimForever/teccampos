@@ -30,3 +30,10 @@ async def get_questionario(
     user: User = Depends(current_active_user)
 ):
     return await QuestionarioRepository().get_questionario(user=user, db=db)
+
+@questionario_router.get("/consultant")
+async def get_questionario_consultants(
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+    user: User = Depends(current_active_user)
+):
+    return await QuestionarioRepository().list_questionarios(user=user, db=db)

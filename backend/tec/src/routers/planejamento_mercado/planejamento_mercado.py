@@ -28,3 +28,12 @@ async def update_planejamento_mercado_full(
     user: User = Depends(current_active_user)
 ):
     return await PlanejamentoMercadoRepository().update_planejamento_mercado(db=db, user=user, planejamento=planejamento_object, planejamento_id=planejamento_id)
+
+
+@planejamento_mercado_router.get("/{planejamento_id}")
+async def list_planejamento_mercado(
+     planejamento_id: int,
+     db: Annotated[AsyncSession, Depends(get_async_session)],
+     user: User = Depends(current_active_user)
+):
+     return await PlanejamentoMercadoRepository().list_planejamento_id(db=db, user=user, planejamento_id=planejamento_id)

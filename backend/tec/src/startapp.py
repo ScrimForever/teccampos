@@ -10,12 +10,15 @@ from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import StreamingResponse
 import json
 from infra.database import create_db_and_tables, User
+from domain.models.agenda_model import Agenda  # noqa: F401 — registers table in Base.metadata
 from domain.schemas.user_schema import UserRead, UserCreate, UserUpdate
 from domain.security.users import auth_backend, current_active_user, fastapi_users
 
 from routers.user_status.user_status import user_status_router
 from routers.questionario.questionario import questionario_router
 from routers.planejamento_mercado.planejamento_mercado import planejamento_mercado_router
+from routers.membros.membros import membros_router
+from routers.agenda.agenda import agenda_router
 
 import logfire
 
@@ -144,6 +147,15 @@ app.include_router(
 app.include_router(
     planejamento_mercado_router
 )
+
+app.include_router(
+    membros_router
+)
+
+app.include_router(
+    agenda_router
+)
+
 @app.get("/teste")
 async def rota_teste(response: Response):
     return {"trace": "ok"}

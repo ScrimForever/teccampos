@@ -22,17 +22,27 @@ class PlanejamentoMercadoRepository:
             logger.error(e)
             return None
 
+
     async def update_planejamento_mercado(self, planejamento_id: int, db: AsyncSession, user: User, planejamento: PlanejamentoMercadoInput):
+        stmt = select(PlanejamentoMercadoModel).where(PlanejamentoMercadoModel.id == planejamento_id)
+        execute_stmt = await db.execute(stmt)
+        response_stmt = execute_stmt.scalar_one_or_none()
+
+        if response_stmt is None:
+            return None
+        else:
+            x = planejamento.model_dump()
+            stmt = update(PlanejamentoMercadoModel).where(PlanejamentoMercadoModel.id == planejamento_id).values(x)
+            await db.execute(stmt)
+            await db.commit()
+            return {"mensagem": "Updated Planejamento Mercado"}
+
+
+    async def list_planejamento_id(self, planejamento_id: int, db: AsyncSession, user: User):
         stmt = select(PlanejamentoMercadoModel).where(PlanejamentoMercadoModel.id == planejamento_id)
         execute_stmt = await db.execute(stmt)
         response_stmt = execute_stmt.scalar_one_or_none()
         if response_stmt is None:
             return None
         else:
-            x = planejamento.model_dump()
-            z = planejamento_id
-            stmt = update(PlanejamentoMercadoModel).where(PlanejamentoMercadoModel.id == planejamento_id).values(x)
-            await db.execute(stmt)
-            await db.commit()
-            return {"menssage": "Updated Planejamento Mercado"}
-
+            return response_stmt
