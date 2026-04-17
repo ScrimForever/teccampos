@@ -17,15 +17,16 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             cd /var/www/app
-            git pull origin main
-
+            git fetch origin main
+            git reset --hard origin/main
+            
             # Backend
             cd backend/tec
             source .venv/bin/activate
-            uv sync
+            uv pip install -r requirements.txt
             deactivate
             sudo systemctl restart uvicorn
-
+            
             # Frontend
             cd /var/www/app/frontend
             npm install
