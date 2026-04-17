@@ -114,6 +114,52 @@ const normalizePratica = (data) => {
   return normalized
 }
 
+// ── Agenda helpers ──────────────────────────────────────────────────────────
+
+function getDaysInRange(startDate, endDate) {
+  const days = []
+  const cur = new Date(startDate + 'T00:00:00')
+  const end = new Date(endDate + 'T00:00:00')
+  while (cur <= end) {
+    days.push(cur.toISOString().split('T')[0])
+    cur.setDate(cur.getDate() + 1)
+  }
+  return days
+}
+
+function getBookedIntervals(reservas, data) {
+  return (reservas || [])
+    .filter(r => r.data === data)
+    .map(r => ({ start: parseInt(r.horaInicio), end: parseInt(r.horaFim) }))
+}
+
+function getAvailableStartHours(slotStart, slotEnd, bookedIntervals, duracao) {
+  const available = []
+  for (let h = parseInt(slotStart); h + duracao <= parseInt(slotEnd); h++) {
+    if (!bookedIntervals.some(b => h < b.end && h + duracao > b.start)) {
+      available.push(h)
+    }
+  }
+  return available
+}
+
+function getMaxDuracao(slotEnd, startHour, bookedIntervals) {
+  let max = 0
+  for (let dur = 1; startHour + dur <= parseInt(slotEnd); dur++) {
+    if (bookedIntervals.some(b => startHour < b.end && startHour + dur > b.start)) break
+    max = dur
+  }
+  return max
+}
+
+function getBookedHoursForDay(reservas, data) {
+  return (reservas || [])
+    .filter(r => r.data === data)
+    .reduce((sum, r) => sum + parseInt(r.horaFim) - parseInt(r.horaInicio), 0)
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+
 function Dashboard() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -169,6 +215,9 @@ function Dashboard() {
   })
   const [isIncubado, setIsIncubado] = useState(true)
   const [isConsultor, setIsConsultor] = useState(false)
+  const [questionariosConsultor, setQuestionariosConsultor] = useState([])
+  const [showQuestionariosConsultor, setShowQuestionariosConsultor] = useState(false)
+  const [loadingQuestionariosConsultor, setLoadingQuestionariosConsultor] = useState(false)
   const [loadingApproval, setLoadingApproval] = useState(true)
   const [pendingPlans, setPendingPlans] = useState([])
   const [loadingPendingPlans, setLoadingPendingPlans] = useState(false)
@@ -195,6 +244,7 @@ function Dashboard() {
   const [confirmationLoading, setConfirmationLoading] = useState(false)
   const [agendaOriginalData, setAgendaOriginalData] = useState({})  // Armazena JSON original das agendas
   const [hasChanges, setHasChanges] = useState(false)  // Rastreia se há modificações na agenda
+  const [reservacaoForm, setReservacaoForm] = useState({ data: '', horaInicio: '09', duracao: 1 })
   const [stats, setStats] = useState({
     totalUsers: 1250,
     pendingReviews: 23,
@@ -247,11 +297,11 @@ function Dashboard() {
         const response = await api.get('/users/me')
         console.log('📝 Dashboard user data:', response.data)
 
-        const isConsultorValue = response.data?.is_consultor === true
-        const isIncubadoValue = response.data?.is_incubado !== false
+        const isConsultorValue = response.data?.is_consultant === true
+        const isIncubadoValue = !isConsultorValue && response.data?.is_incubated === true
 
-        console.log('👨‍💼 is_consultor:', isConsultorValue)
-        console.log('🏢 is_incubado:', isIncubadoValue)
+        console.log('👨‍💼 is_consultant:', isConsultorValue)
+        console.log('🏢 is_incubated:', isIncubadoValue)
 
         setIsConsultor(isConsultorValue)
         setIsIncubado(isIncubadoValue)
@@ -404,16 +454,11 @@ function Dashboard() {
               compromissos.forEach((apt, aptIdx) => {
                 console.log(`📅 Processando compromisso ${aptIdx}:`, apt)
 
-                // Verificar se o compromisso já foi participado
-                const isParticipated = !!(apt.incubado && apt.empresa)
-                if (isParticipated) {
-                  console.log(`⏸️ Compromisso ${aptIdx} já foi participado por: ${apt.incubado} (${apt.empresa})`)
-                }
-
                 // Transformar o compromisso do formato API para o formato interno
+                const reservas = apt.reservas || []
                 const transformedAppointment = {
                   id: apt.id,
-                  agendaId: agendaId,  // Adicionar ID da agenda para referência
+                  agendaId: agendaId,
                   title: apt.titulo,
                   description: apt.descricao || '',
                   responsible: apt.responsavel || '',
@@ -423,10 +468,7 @@ function Dashboard() {
                   endHour: apt.horaFim ? apt.horaFim.split(':')[0] : '00',
                   isOpenAppointment: apt.ehCompromisoAberto || false,
                   consultorEmail: apt.consultorEmail,
-                  incubado: apt.incubado || null,
-                  empresa: apt.empresa || null,
-                  dataParticipacao: apt.dataParticipacao || null,
-                  isParticipated: isParticipated
+                  reservas,
                 }
 
                 loadedAppointments.push(transformedAppointment)
@@ -453,6 +495,673 @@ function Dashboard() {
 
   const handleLogout = () => {
     logout()
+  }
+
+  const gerarHTMLQuestionario = (raw) => {
+    const rel = raw.planejamento_mercado_rel || {}
+    const d = {
+      nomeProponente: raw.nome_proponente || '',
+      nomeNegocio: raw.nome_negocio || '',
+      setorAtuacao: raw.setor_atuacao || '',
+      cnpj: raw.cnpj || '',
+      businessModelCanvas: raw.business_canvas || '',
+      executiveSummary: raw.sumario_executivo || '',
+      produtoServico: raw.planejamento_produto || raw.produto_servico || '',
+      analiseFornecedores: rel.fornecedores || raw.fornecedores || raw.analise_fornecedores || '',
+      analiseCompetidores: rel.concorrentes || raw.concorrentes || raw.analise_competidores || '',
+      planejamentoMercado: rel.analise_acao || raw.analise_acao || '',
+      estrategiaMarketing: raw.planejamento_marketing || raw.estrategia_marketing || '',
+      planejamentoEstrutura: raw.planejamento_estrutura || '',
+      planejamentoFinanceiro: raw.planejamento_financeiro || '',
+    }
+    console.log('📄 Gerando HTML com dados:', d)
+
+    const dataGeracao = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })
+    const nomeArquivo = (d.nomeNegocio || d.nomeProponente || 'questionario').replace(/\s+/g, '-').toLowerCase()
+
+    const secao = (numero, titulo, conteudo) => `
+      <div class="secao">
+        <div class="secao-titulo">
+          <span class="secao-numero">${numero}</span>
+          <span class="secao-label">${titulo}</span>
+        </div>
+        <div class="secao-corpo">${conteudo ? conteudo.replace(/\n/g, '<br/>') : '<span class="vazio">Não preenchido</span>'}</div>
+      </div>`
+
+    return `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Relatório de Questionário — ${d.nomeNegocio || d.nomeProponente}</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+    @page {
+      size: A4;
+      margin: 0;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', Arial, sans-serif;
+      font-size: 11px;
+      color: #1a1a2e;
+      background: #e8ecf4;
+      padding: 24px;
+    }
+
+    .pagina {
+      width: 210mm;
+      min-height: 297mm;
+      margin: 0 auto;
+      background: #fff;
+      overflow: hidden;
+      box-shadow: 0 4px 32px rgba(0,0,0,0.15);
+    }
+
+    /* ── Cabeçalho ── */
+    .cabecalho {
+      background: linear-gradient(135deg, #0f2d6e 0%, #1a4b8c 60%, #2563c4 100%);
+      padding: 28px 36px 24px;
+      color: #fff;
+      position: relative;
+    }
+    .cabecalho::after {
+      content: '';
+      display: block;
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 5px;
+      background: linear-gradient(90deg, #f59e0b, #ef4444, #8b5cf6);
+    }
+    .cabecalho-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 18px;
+    }
+    .badge-relatorio {
+      background: rgba(255,255,255,0.15);
+      border: 1px solid rgba(255,255,255,0.3);
+      color: #fff;
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      padding: 3px 10px;
+      border-radius: 20px;
+    }
+    .data-geracao {
+      font-size: 10px;
+      color: rgba(255,255,255,0.65);
+    }
+    .cabecalho h1 {
+      font-size: 22px;
+      font-weight: 700;
+      margin-bottom: 4px;
+      letter-spacing: -0.3px;
+    }
+    .cabecalho .subtitulo {
+      font-size: 11px;
+      color: rgba(255,255,255,0.7);
+      font-weight: 300;
+    }
+
+    /* ── Faixa de metadados ── */
+    .meta-faixa {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      background: #f8faff;
+      border-bottom: 2px solid #e2e8f0;
+    }
+    .meta-item {
+      padding: 12px 20px;
+      border-right: 1px solid #e2e8f0;
+    }
+    .meta-item:last-child { border-right: none; }
+    .meta-rotulo {
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: #94a3b8;
+      margin-bottom: 3px;
+    }
+    .meta-valor {
+      font-size: 11px;
+      font-weight: 600;
+      color: #1e293b;
+    }
+
+    /* ── Conteúdo ── */
+    .conteudo { padding: 20px 36px 36px; }
+
+    .secao {
+      margin-bottom: 14px;
+      border: 1px solid #e8edf5;
+      border-radius: 6px;
+      overflow: hidden;
+      page-break-inside: avoid;
+    }
+
+    .secao-titulo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: #f1f5fd;
+      padding: 8px 14px;
+      border-bottom: 1px solid #dde4f0;
+    }
+    .secao-numero {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 22px;
+      height: 22px;
+      background: #1a4b8c;
+      color: #fff;
+      font-size: 10px;
+      font-weight: 700;
+      border-radius: 50%;
+      flex-shrink: 0;
+      padding: 0 3px;
+    }
+    .secao-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: #1e293b;
+    }
+
+    .secao-corpo {
+      padding: 12px 14px;
+      line-height: 1.65;
+      color: #374151;
+      white-space: pre-wrap;
+      font-size: 11px;
+    }
+    .vazio {
+      color: #9ca3af;
+      font-style: italic;
+    }
+
+    /* ── Rodapé ── */
+    .rodape {
+      margin-top: 20px;
+      padding-top: 12px;
+      border-top: 1px solid #e2e8f0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 9px;
+      color: #94a3b8;
+    }
+
+    /* ── Barra de ações ── */
+    .acoes-bar {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      padding: 16px 0 24px;
+    }
+    .btn-acao {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 24px;
+      border: none;
+      border-radius: 8px;
+      font-family: 'Inter', Arial, sans-serif;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    .btn-acao:hover { opacity: 0.85; }
+    .btn-imprimir { background: #1a4b8c; color: #fff; }
+    .btn-download { background: #f1f5fd; color: #1a4b8c; border: 1px solid #dde4f0; }
+
+    /* ── Print ── */
+    @media print {
+      .acoes-bar { display: none; }
+      body { background: #fff; padding: 0; }
+      .pagina { box-shadow: none; width: 100%; min-height: 0; }
+      .secao { page-break-inside: avoid; }
+      .cabecalho { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .secao-titulo { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .secao-numero { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .meta-faixa { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+  </style>
+</head>
+<body>
+  <div class="acoes-bar">
+    <button class="btn-acao btn-imprimir" onclick="window.print()">🖨️ Imprimir</button>
+    <button class="btn-acao btn-download" onclick="downloadHTML()">⬇️ Baixar PDF</button>
+  </div>
+  <div class="pagina">
+
+    <div class="cabecalho">
+      <div class="cabecalho-top">
+        <span class="badge-relatorio">Relatório Oficial</span>
+        <span class="data-geracao">Gerado em ${dataGeracao}</span>
+      </div>
+      <h1>${d.nomeNegocio || 'Nome do Negócio'}</h1>
+      <p class="subtitulo">Plano de Negócio — Questionário de Incubação</p>
+    </div>
+
+    <div class="meta-faixa">
+      <div class="meta-item">
+        <div class="meta-rotulo">Proponente</div>
+        <div class="meta-valor">${d.nomeProponente || '—'}</div>
+      </div>
+      <div class="meta-item">
+        <div class="meta-rotulo">CNPJ</div>
+        <div class="meta-valor">${d.cnpj || '—'}</div>
+      </div>
+      <div class="meta-item">
+        <div class="meta-rotulo">Setor de Atuação</div>
+        <div class="meta-valor">${d.setorAtuacao || '—'}</div>
+      </div>
+    </div>
+
+    <div class="conteudo">
+      ${secao(1, 'Setor de Atuação', d.setorAtuacao)}
+      ${secao(2, 'Business Model Canvas', d.businessModelCanvas)}
+      ${secao(3, 'Sumário Executivo', d.executiveSummary)}
+      ${secao(5, 'Planejamento do Produto e/ou Serviço', d.produtoServico)}
+      ${secao('6a', 'Análise dos Fornecedores', d.analiseFornecedores)}
+      ${secao('6b', 'Análise dos Concorrentes', d.analiseCompetidores)}
+      ${secao('6c', 'Planejamento das Ações do Mercado', d.planejamentoMercado)}
+      ${secao(7, 'Estratégia de Marketing', d.estrategiaMarketing)}
+      ${secao(8, 'Planejamento da Estrutura, Gerência e Operações', d.planejamentoEstrutura)}
+      ${secao(9, 'Planejamento Financeiro', d.planejamentoFinanceiro)}
+
+      <div class="rodape">
+        <span>TecIncubadora — Documento gerado automaticamente</span>
+        <span>${dataGeracao}</span>
+      </div>
+    </div>
+
+  </div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script>
+    async function downloadHTML() {
+      const btn = document.querySelector('.btn-download');
+      btn.textContent = '⏳ Gerando...';
+      btn.disabled = true;
+      try {
+        const { jsPDF } = window.jspdf;
+        const pagina = document.querySelector('.pagina');
+        const canvas = await html2canvas(pagina, { scale: 2, useCORS: true });
+        const imgData = canvas.toDataURL('image/jpeg', 0.95);
+        const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+        const pageW = pdf.internal.pageSize.getWidth();
+        const pageH = pdf.internal.pageSize.getHeight();
+        const imgH = (canvas.height * pageW) / canvas.width;
+        let posY = 0;
+        let remaining = imgH;
+        while (remaining > 0) {
+          pdf.addImage(imgData, 'JPEG', 0, -posY, pageW, imgH);
+          remaining -= pageH;
+          posY += pageH;
+          if (remaining > 0) pdf.addPage();
+        }
+        pdf.save('relatorio-${nomeArquivo}.pdf');
+      } finally {
+        btn.textContent = '⬇️ Baixar PDF';
+        btn.disabled = false;
+      }
+    }
+  </script>
+</body>
+</html>`
+  }
+
+  const abrirRelatorioQuestionario = (raw) => {
+    const html = gerarHTMLQuestionario(raw)
+    const win = window.open('', '_blank')
+    win.document.write(html)
+    win.document.close()
+    win.focus()
+  }
+
+  const buscarEAbrirQuestionario = async (raw) => {
+    let rawEnriquecido = { ...raw }
+    console.log('📥 Dados do questionário recebidos:', raw)
+
+    const planejamentoId = raw.planejamento_mercado
+    console.log('🔎 planejamento_mercado ID:', planejamentoId)
+
+    if (planejamentoId) {
+      try {
+        const resp = await api.get(`/planejamento/${planejamentoId}`)
+        const p = resp.data || {}
+        console.log('📦 Dados do planejamento:', p)
+        rawEnriquecido.planejamento_mercado_rel = {
+          fornecedores: p.fornecedores || '',
+          concorrentes: p.concorrentes || '',
+          analise_acao: p.analise_acao || '',
+          upload_file_path: p.upload_file_path || '',
+        }
+      } catch (err) {
+        console.warn('⚠️ Não foi possível buscar planejamento de mercado:', err)
+      }
+    } else {
+      console.warn('⚠️ Sem planejamento_mercado ID no questionário — campos de mercado podem estar vazios')
+    }
+    abrirRelatorioQuestionario(rawEnriquecido)
+  }
+
+  const handleGerarPDFQuestionario = async () => {
+    try {
+      const response = await api.get('/questionario')
+      const raw = Array.isArray(response.data) ? response.data[0] : response.data
+      if (!raw) return alert('Nenhum questionário encontrado.')
+      await buscarEAbrirQuestionario(raw)
+    } catch (err) {
+      console.error('❌ Erro ao gerar PDF:', err)
+    }
+  }
+
+  const handleVerQuestionarioConsultor = async (q) => {
+    await buscarEAbrirQuestionario(q)
+  }
+
+  const handleAbrirQuestionariosConsultor = async () => {
+    setShowQuestionariosConsultor(true)
+    setLoadingQuestionariosConsultor(true)
+    try {
+      const response = await api.get('/questionario/consultant')
+      const lista = Array.isArray(response.data) ? response.data : []
+      const ordenada = [...lista].sort((a, b) =>
+        (a.nome_negocio || '').localeCompare(b.nome_negocio || '', 'pt-BR', { sensitivity: 'base' })
+      )
+      setQuestionariosConsultor(ordenada)
+    } catch (err) {
+      console.error('❌ Erro ao buscar questionários:', err)
+      setQuestionariosConsultor([])
+    } finally {
+      setLoadingQuestionariosConsultor(false)
+    }
+  }
+
+  const handleGerarPDFMembros = async () => {
+    try {
+      const qResponse = await api.get('/questionario')
+      const raw = Array.isArray(qResponse.data) ? qResponse.data[0] : qResponse.data
+      if (!raw) return alert('Nenhum questionário encontrado.')
+
+      const equipeId = raw.equipe
+      if (!equipeId) return alert('Nenhuma equipe cadastrada.')
+
+      const mResponse = await api.get(`/membros/${equipeId}`)
+      const membros = Array.isArray(mResponse.data) ? mResponse.data : []
+
+      const dataGeracao = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })
+
+      const linhasMembros = membros.length === 0
+        ? `<tr><td colspan="4" style="text-align:center;color:#9ca3af;font-style:italic;padding:20px;">Nenhum membro cadastrado</td></tr>`
+        : membros.map((m, i) => `
+          <tr class="${i % 2 === 0 ? 'par' : 'impar'}">
+            <td>${m.nome || '—'}</td>
+            <td>${m.email || '—'}</td>
+            <td>${m.formacao_academica || '—'}</td>
+            <td>${m.experiencia || '—'}</td>
+          </tr>`).join('')
+
+      const html = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Relatório de Membros — ${raw.nome_negocio || raw.nome_proponente}</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    @page { size: A4; margin: 0; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', Arial, sans-serif;
+      font-size: 11px;
+      color: #1a1a2e;
+      background: #e8ecf4;
+      padding: 24px;
+    }
+
+    .pagina {
+      width: 210mm;
+      min-height: 297mm;
+      margin: 0 auto;
+      background: #fff;
+      overflow: hidden;
+      box-shadow: 0 4px 32px rgba(0,0,0,0.15);
+    }
+
+    .cabecalho {
+      background: linear-gradient(135deg, #0f2d6e 0%, #1a4b8c 60%, #2563c4 100%);
+      padding: 28px 36px 24px;
+      color: #fff;
+      position: relative;
+    }
+    .cabecalho::after {
+      content: '';
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 5px;
+      background: linear-gradient(90deg, #f59e0b, #ef4444, #8b5cf6);
+    }
+    .cabecalho-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 18px;
+    }
+    .badge {
+      background: rgba(255,255,255,0.15);
+      border: 1px solid rgba(255,255,255,0.3);
+      color: #fff;
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      padding: 3px 10px;
+      border-radius: 20px;
+    }
+    .data-geracao { font-size: 10px; color: rgba(255,255,255,0.65); }
+    .cabecalho h1 { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+    .cabecalho .subtitulo { font-size: 11px; color: rgba(255,255,255,0.7); font-weight: 300; }
+
+    .meta-faixa {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      background: #f8faff;
+      border-bottom: 2px solid #e2e8f0;
+    }
+    .meta-item { padding: 12px 20px; border-right: 1px solid #e2e8f0; }
+    .meta-item:last-child { border-right: none; }
+    .meta-rotulo { font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: #94a3b8; margin-bottom: 3px; }
+    .meta-valor { font-size: 11px; font-weight: 600; color: #1e293b; }
+
+    .conteudo { padding: 24px 36px 36px; }
+
+    .total-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #f1f5fd;
+      border: 1px solid #dde4f0;
+      border-radius: 20px;
+      padding: 4px 14px;
+      font-size: 10px;
+      font-weight: 600;
+      color: #1a4b8c;
+      margin-bottom: 16px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid #e2e8f0;
+    }
+    thead tr {
+      background: #1a4b8c;
+      color: #fff;
+    }
+    thead th {
+      padding: 10px 14px;
+      text-align: left;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+    tbody td {
+      padding: 10px 14px;
+      font-size: 11px;
+      color: #374151;
+      border-bottom: 1px solid #f0f4f8;
+      vertical-align: top;
+    }
+    tr.par { background: #fff; }
+    tr.impar { background: #f8faff; }
+
+    .rodape {
+      margin-top: 24px;
+      padding-top: 12px;
+      border-top: 1px solid #e2e8f0;
+      display: flex;
+      justify-content: space-between;
+      font-size: 9px;
+      color: #94a3b8;
+    }
+
+    /* ── Barra de ações ── */
+    .acoes-bar {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      padding: 16px 0 24px;
+    }
+    .btn-acao {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 24px;
+      border: none;
+      border-radius: 8px;
+      font-family: 'Inter', Arial, sans-serif;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    .btn-acao:hover { opacity: 0.85; }
+    .btn-imprimir { background: #1a4b8c; color: #fff; }
+    .btn-download { background: #f1f5fd; color: #1a4b8c; border: 1px solid #dde4f0; }
+
+    @media print {
+      .acoes-bar { display: none; }
+      body { background: #fff; padding: 0; }
+      .pagina { box-shadow: none; width: 100%; min-height: 0; }
+      .cabecalho { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      thead tr { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      tr.impar { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .meta-faixa { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+  </style>
+</head>
+<body>
+  <div class="acoes-bar">
+    <button class="btn-acao btn-imprimir" onclick="window.print()">🖨️ Imprimir</button>
+    <button class="btn-acao btn-download" onclick="downloadHTML()">⬇️ Baixar PDF</button>
+  </div>
+  <div class="pagina">
+    <div class="cabecalho">
+      <div class="cabecalho-top">
+        <span class="badge">Relatório de Equipe</span>
+        <span class="data-geracao">Gerado em ${dataGeracao}</span>
+      </div>
+      <h1>${raw.nome_negocio || 'Nome do Negócio'}</h1>
+      <p class="subtitulo">Membros da Equipe — Plano de Negócio</p>
+    </div>
+
+    <div class="meta-faixa">
+      <div class="meta-item">
+        <div class="meta-rotulo">Proponente</div>
+        <div class="meta-valor">${raw.nome_proponente || '—'}</div>
+      </div>
+      <div class="meta-item">
+        <div class="meta-rotulo">Setor de Atuação</div>
+        <div class="meta-valor">${raw.setor_atuacao || '—'}</div>
+      </div>
+    </div>
+
+    <div class="conteudo">
+      <div class="total-badge">👥 ${membros.length} membro${membros.length !== 1 ? 's' : ''} cadastrado${membros.length !== 1 ? 's' : ''}</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Nome</th>
+            <th>E-mail</th>
+            <th>Formação Acadêmica</th>
+            <th>Experiência</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${linhasMembros}
+        </tbody>
+      </table>
+
+      <div class="rodape">
+        <span>TecIncubadora — Documento gerado automaticamente</span>
+        <span>${dataGeracao}</span>
+      </div>
+    </div>
+  </div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script>
+    async function downloadHTML() {
+      const btn = document.querySelector('.btn-download');
+      btn.textContent = '⏳ Gerando...';
+      btn.disabled = true;
+      try {
+        const { jsPDF } = window.jspdf;
+        const pagina = document.querySelector('.pagina');
+        const canvas = await html2canvas(pagina, { scale: 2, useCORS: true });
+        const imgData = canvas.toDataURL('image/jpeg', 0.95);
+        const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+        const pageW = pdf.internal.pageSize.getWidth();
+        const pageH = pdf.internal.pageSize.getHeight();
+        const imgH = (canvas.height * pageW) / canvas.width;
+        let posY = 0;
+        let remaining = imgH;
+        while (remaining > 0) {
+          pdf.addImage(imgData, 'JPEG', 0, -posY, pageW, imgH);
+          remaining -= pageH;
+          posY += pageH;
+          if (remaining > 0) pdf.addPage();
+        }
+        pdf.save('relatorio-membros.pdf');
+      } finally {
+        btn.textContent = '⬇️ Baixar PDF';
+        btn.disabled = false;
+      }
+    }
+  </script>
+</body>
+</html>`
+
+      const win = window.open('', '_blank')
+      win.document.write(html)
+      win.document.close()
+      win.focus()
+    } catch (err) {
+      console.error('❌ Erro ao gerar PDF de membros:', err)
+    }
   }
 
   const handleAddMeioacoes = () => {
@@ -1187,124 +1896,89 @@ function Dashboard() {
   }
 
   const handleAppointmentClick = (apt) => {
-    // Se o compromisso já foi participado, não pode ser modificado
-    if (apt.isParticipated) {
+    if (isConsultor || !isIncubado) return
+
+    // Usuário já tem reserva neste slot?
+    const jaTemReserva = (apt.reservas || []).some(r => r.incubado === user?.email)
+    if (jaTemReserva) {
       setMessageModalType('error')
-      setMessageModalContent(`Este agendamento já foi confirmado por:\n\n${apt.incubado}\nEmpresa: ${apt.empresa}\n\nNão pode ser modificado.`)
+      setMessageModalContent('Você já possui uma reserva neste agendamento.')
       setShowMessageModal(true)
       return
     }
 
-    // Se o usuário é incubado (não é consultor), pode participar do agendamento
-    if (!isConsultor && isIncubado) {
-      // Verificar se o usuário já participa de outro agendamento do mesmo consultor
-      const jaParticipaDesteConsultor = appointments.some(otherApt =>
-        otherApt.isParticipated &&
-        otherApt.incubado === user?.email &&
-        otherApt.consultorEmail === apt.consultorEmail &&
-        otherApt.id !== apt.id
-      )
+    // Determinar o dia inicial para o formulário
+    const dayDefault =
+      selectedDate && selectedDate >= apt.startDate && selectedDate <= apt.endDate
+        ? selectedDate
+        : apt.startDate
 
-      if (jaParticipaDesteConsultor) {
-        setMessageModalType('error')
-        setMessageModalContent(`Você já está participando de outro agendamento deste consultor:\n\n${apt.consultorEmail}\n\nNão é permitido participar de mais de um agendamento por consultor.`)
-        setShowMessageModal(true)
-        return
-      }
+    const bookedIntervals = getBookedIntervals(apt.reservas, dayDefault)
+    const availableStarts = getAvailableStartHours(apt.startHour, apt.endHour, bookedIntervals, 1)
 
-      setSelectedAppointmentForConfirmation(apt)
-      setShowConfirmationModal(true)
+    if (availableStarts.length === 0) {
+      setMessageModalType('error')
+      setMessageModalContent('Não há horários disponíveis neste agendamento.')
+      setShowMessageModal(true)
+      return
     }
+
+    setReservacaoForm({
+      data: dayDefault,
+      horaInicio: String(availableStarts[0]).padStart(2, '0'),
+      duracao: 1,
+    })
+    setSelectedAppointmentForConfirmation(apt)
+    setShowConfirmationModal(true)
   }
 
-  const handleConfirmAppointment = async (confirmed) => {
-    if (!selectedAppointmentForConfirmation) return
+  const handleConfirmAppointment = async () => {
+    const apt = selectedAppointmentForConfirmation
+    if (!apt) return
 
     try {
       setConfirmationLoading(true)
 
-      if (confirmed) {
-        // Adicionar o usuário como participante do agendamento
-        const aptIndex = appointments.findIndex(apt => apt.id === selectedAppointmentForConfirmation.id)
-        if (aptIndex !== -1) {
-          const updatedAppointments = [...appointments]
-          const apt = updatedAppointments[aptIndex]
-          const agendaId = apt.agendaId
-
-          // Obter dados originais da agenda
-          const agendaOriginal = agendaOriginalData[agendaId] || {}
-          const nomeEmpresa = user?.company || user?.empresa || 'Empresa'
-
-          // Criar o objeto do compromisso com os campos incubado e empresa adicionados
-          const compromissoAtualizado = {
-            id: apt.id,
-            titulo: apt.title,
-            descricao: apt.description || '',
-            responsavel: apt.responsible || '',
-            dataInicio: apt.startDate,
-            dataFim: apt.endDate,
-            horaInicio: `${String(apt.startHour).padStart(2, '0')}:00`,
-            horaFim: `${String(apt.endHour).padStart(2, '0')}:00`,
-            ehCompromisoAberto: apt.isOpenAppointment,
-            consultorEmail: apt.consultorEmail,
-            incubado: user?.email,
-            empresa: nomeEmpresa,
-            dataParticipacao: new Date().toISOString()
-          }
-
-          // Reconstruir o JSON completo da agenda com os dados originais
-          const agendaJsonPayload = {
-            timestamp: agendaOriginal.timestamp || new Date().toISOString(),
-            consultor: agendaOriginal.consultor || {},
-            totalCompromissos: agendaOriginal.totalCompromissos || 1,
-            compromissos: [compromissoAtualizado]
-          }
-
-          // Criar payload com a estrutura esperada
-          const participacaoPayload = {
-            agenda_json: agendaJsonPayload
-          }
-
-          console.log('📅 Enviando participação do incubado para agenda ID:', agendaId)
-          console.log('📅 Email do incubado:', user?.email)
-          console.log('📅 Nome da empresa:', nomeEmpresa)
-          console.log('📅 Payload:', JSON.stringify(participacaoPayload, null, 2))
-
-          // Enviar participação para o servidor no endpoint /agenda/participar/{agendaId}
-          const response = await api.put(
-            `/agenda/participar/${agendaId}`,
-            participacaoPayload
-          )
-
-          console.log('✅ Participação confirmada:', response.data)
-
-          // Atualizar o estado local
-          updatedAppointments[aptIndex] = {
-            ...apt,
-            incubado: user?.email,
-            empresa: nomeEmpresa,
-            dataParticipacao: new Date().toISOString()
-          }
-          setAppointments(updatedAppointments)
-          setHasChanges(true)  // Marca como modificado
-
-          setMessageModalType('success')
-          setMessageModalContent(`✅ Sua participação foi confirmada!\n\n${selectedAppointmentForConfirmation.title}\nEmpresa: ${nomeEmpresa}`)
-          setShowMessageModal(true)
-        }
-      } else {
-        console.log('❌ Participação recusada pelo usuário')
-        setMessageModalType('error')
-        setMessageModalContent(`Participação recusada.\n\n${selectedAppointmentForConfirmation.title}`)
-        setShowMessageModal(true)
+      const horaFim = parseInt(reservacaoForm.horaInicio) + reservacaoForm.duracao
+      const payload = {
+        compromisso_id: apt.id,
+        hora_inicio: `${String(reservacaoForm.horaInicio).padStart(2, '0')}:00`,
+        hora_fim: `${String(horaFim).padStart(2, '0')}:00`,
+        data: reservacaoForm.data,
+        empresa: user?.company || user?.empresa || '',
       }
+
+      console.log('📅 Enviando reserva para agenda ID:', apt.agendaId, payload)
+      await api.put(`/agenda/participar/${apt.agendaId}`, payload)
+
+      const novaReserva = {
+        incubado: user.email,
+        empresa: payload.empresa,
+        horaInicio: payload.hora_inicio,
+        horaFim: payload.hora_fim,
+        data: payload.data,
+        dataParticipacao: new Date().toISOString(),
+      }
+
+      setAppointments(prev =>
+        prev.map(a =>
+          a.id === apt.id && a.agendaId === apt.agendaId
+            ? { ...a, reservas: [...(a.reservas || []), novaReserva] }
+            : a
+        )
+      )
 
       setShowConfirmationModal(false)
       setSelectedAppointmentForConfirmation(null)
+      setMessageModalType('success')
+      setMessageModalContent(
+        `Reserva confirmada!\n\n${apt.title}\nDia: ${payload.data}\nHorário: ${payload.hora_inicio} às ${payload.hora_fim}`
+      )
+      setShowMessageModal(true)
     } catch (error) {
-      console.error('❌ Erro ao confirmar participação:', error)
+      console.error('❌ Erro ao confirmar reserva:', error)
       setMessageModalType('error')
-      setMessageModalContent(`Erro ao confirmar participação.\n\n${error.message}`)
+      setMessageModalContent(`Erro ao confirmar reserva.\n\n${error.responseData?.detail || error.message}`)
       setShowMessageModal(true)
       setShowConfirmationModal(false)
       setSelectedAppointmentForConfirmation(null)
@@ -1627,31 +2301,78 @@ function Dashboard() {
           </div>
 
           <div className="dashboard-content">
-            {currentSection === 'overview' && (
+            {currentSection === 'overview' && isConsultor && (
               <div className="overview-section">
                 <h2>Visão Geral</h2>
                 <div className="stats-grid">
-                  <div className="stat-card">
-                    <div className="stat-icon">👥</div>
+                  <div className="stat-card" onClick={handleAbrirQuestionariosConsultor} style={{ cursor: 'pointer' }}>
+                    <div className="stat-icon">📋</div>
                     <div className="stat-info">
-                      <h3>Usuários Totais</h3>
-                      <p className="stat-number">{stats.totalUsers}</p>
+                      <h3>Questionários</h3>
                     </div>
                   </div>
-                  <div className="stat-card">
-                    <div className="stat-icon">⏳</div>
+                  <div className="stat-card" style={{ cursor: 'pointer' }}>
+                    <div className="stat-icon">📊</div>
                     <div className="stat-info">
-                      <h3>Pendentes</h3>
-                      <p className="stat-number">{stats.pendingReviews}</p>
+                      <h3>Indicadores</h3>
                     </div>
                   </div>
-                  <div className="stat-card">
-                    <div className="stat-icon">✅</div>
-                    <div className="stat-info">
-                      <h3>Completos</h3>
-                      <p className="stat-number">{stats.completedForms}</p>
+                </div>
+
+                {showQuestionariosConsultor && (
+                  <div className="questionarios-consultor-panel">
+                    <div className="qc-panel-header">
+                      <h3>Questionários Disponíveis</h3>
+                      <button className="qc-close-btn" onClick={() => setShowQuestionariosConsultor(false)}>✕</button>
                     </div>
+                    {loadingQuestionariosConsultor ? (
+                      <div className="qc-loading">Carregando...</div>
+                    ) : questionariosConsultor.length === 0 ? (
+                      <div className="qc-empty">Nenhum questionário encontrado.</div>
+                    ) : (
+                      <ul className="qc-lista">
+                        {questionariosConsultor.map((q, i) => (
+                          <li key={q.id || i} className="qc-item qc-item-clicavel" onClick={() => handleVerQuestionarioConsultor(q)}>
+                            <span className="qc-icon">📄</span>
+                            <span className="qc-nome">{q.nome_negocio || 'Sem nome'}</span>
+                            <span className="qc-abrir">↗</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
+                )}
+              </div>
+            )}
+
+            {currentSection === 'overview' && !isConsultor && (
+              <div className="overview-section">
+                <h2>Visão Geral</h2>
+                <div className="stats-grid">
+                  {isIncubado && (
+                    <div className="stat-card" onClick={handleGerarPDFQuestionario} style={{ cursor: 'pointer' }}>
+                      <div className="stat-icon">📋</div>
+                      <div className="stat-info">
+                        <h3>Questionario</h3>
+                      </div>
+                    </div>
+                  )}
+                  {isIncubado && (
+                    <div className="stat-card" onClick={handleGerarPDFMembros} style={{ cursor: 'pointer' }}>
+                      <div className="stat-icon">👥</div>
+                      <div className="stat-info">
+                        <h3>Membros</h3>
+                      </div>
+                    </div>
+                  )}
+                  {isIncubado && (
+                    <div className="stat-card" style={{ cursor: 'pointer' }}>
+                      <div className="stat-icon">📊</div>
+                      <div className="stat-info">
+                        <h3>Indicadores</h3>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -1704,37 +2425,49 @@ function Dashboard() {
                             {getAppointmentsForDate(selectedDate).length > 0 && (
                               <div className="event-section">
                                 <div className="section-title">Agendamentos</div>
-                                {getAppointmentsForDate(selectedDate).map(apt => (
+                                {getAppointmentsForDate(selectedDate).map(apt => {
+                                  const slotTotalHours = parseInt(apt.endHour) - parseInt(apt.startHour)
+                                  const bookedToday = getBookedHoursForDay(apt.reservas, selectedDate)
+                                  const availableToday = slotTotalHours - bookedToday
+                                  const userHasReserva = (apt.reservas || []).some(r => r.incubado === user?.email)
+                                  const isFull = availableToday <= 0
+                                  return (
                                   <div
                                     key={apt.id}
-                                    className={`appointment-item ${apt.isParticipated ? 'participated' : (!isConsultor && isIncubado ? 'clickable' : '')} ${apt.usuarios_participantes && apt.usuarios_participantes.length > 0 ? 'confirmed' : ''}`}
+                                    className={`appointment-item ${userHasReserva ? 'participated' : (isFull ? '' : (!isConsultor && isIncubado ? 'clickable' : ''))}`}
                                     onClick={() => handleAppointmentClick(apt)}
                                   >
                                     <div className="apt-title">{apt.title}</div>
                                     <div className="apt-consultor">
                                       💼 Consultor: {apt.consultorEmail}
                                     </div>
-                                    {apt.isParticipated && (
-                                      <div className="apt-participated">
-                                        🔒 Participante: {apt.incubado}<br/>
-                                        <span>Empresa: {apt.empresa}</span>
+                                    <div className="apt-period">
+                                      {apt.startHour}:00 às {apt.endHour}:00
+                                      {' '}· {slotTotalHours}h total
+                                      {' '}· <span style={{ color: isFull ? '#ef4444' : '#16a34a' }}>
+                                        {availableToday}h disponível
+                                      </span>
+                                    </div>
+                                    {(apt.reservas || []).length > 0 && (
+                                      <div className="apt-reservas">
+                                        {apt.reservas.map((r, i) => (
+                                          <div key={i} className="apt-reserva-item" style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
+                                            🔒 {r.horaInicio}–{r.horaFim}: {r.incubado}{r.empresa ? ` (${r.empresa})` : ''}
+                                          </div>
+                                        ))}
                                       </div>
                                     )}
-                                    {!apt.isParticipated && apt.usuarios_participantes && apt.usuarios_participantes.length > 0 && (
-                                      <div className="apt-confirmed">
-                                        ✅ Participantes: {apt.usuarios_participantes.join(', ')}
-                                      </div>
+                                    {!isFull && !userHasReserva && !isConsultor && isIncubado && (
+                                      <div className="apt-click-hint">Clique para reservar um horário</div>
                                     )}
-                                    {!apt.isParticipated && (!apt.usuarios_participantes || apt.usuarios_participantes.length === 0) && !isConsultor && isIncubado && (
-                                      <div className="apt-click-hint">Clique para participar</div>
+                                    {isFull && !userHasReserva && !isConsultor && isIncubado && (
+                                      <div className="apt-click-hint" style={{ color: '#ef4444' }}>Sem horários disponíveis</div>
                                     )}
                                     {apt.description && <div className="apt-description">{apt.description}</div>}
                                     {apt.responsible && <div className="apt-responsible">👤 {apt.responsible}</div>}
-                                    <div className="apt-period">
-                                      {apt.startHour}:00 às {apt.endHour}:00
-                                    </div>
                                   </div>
-                                ))}
+                                  )
+                                })}
                               </div>
                             )}
                             {getAppointmentsForDate(selectedDate).length === 0 && (
@@ -1962,47 +2695,154 @@ function Dashboard() {
                   </div>
                 )}
 
-                {showConfirmationModal && selectedAppointmentForConfirmation && (
-                  <div className="modal-overlay">
-                    <div className="modal-content" style={{ maxWidth: '450px' }}>
-                      <div className="modal-icon" style={{ fontSize: '48px' }}>
-                        🗓️
-                      </div>
-                      <h3 style={{ marginTop: '16px', color: 'var(--primary)' }}>
-                        Participar do Agendamento
-                      </h3>
-                      <p style={{ marginTop: '12px', textAlign: 'center', color: '#374151' }}>
-                        <strong>{selectedAppointmentForConfirmation.title}</strong>
-                      </p>
-                      <p style={{ marginTop: '8px', textAlign: 'center', color: '#374151', fontSize: '14px' }}>
-                        De {selectedAppointmentForConfirmation.startDate} à {selectedAppointmentForConfirmation.endDate}
-                        <br />
-                        {selectedAppointmentForConfirmation.startHour}:00 às {selectedAppointmentForConfirmation.endHour}:00
-                      </p>
-                      <p style={{ marginTop: '16px', textAlign: 'center', color: '#374151', fontSize: '14px' }}>
-                        Você deseja participar deste agendamento?
-                      </p>
-                      <div style={{ marginTop: '24px', display: 'flex', gap: '12px', justifyContent: 'center' }}>
-                        <button
-                          className="btn btn-secondary"
-                          onClick={() => handleConfirmAppointment(false)}
-                          disabled={confirmationLoading}
-                          style={{ flex: 1 }}
-                        >
-                          ❌ Não
-                        </button>
-                        <button
-                          className="btn btn-primary"
-                          onClick={() => handleConfirmAppointment(true)}
-                          disabled={confirmationLoading}
-                          style={{ flex: 1 }}
-                        >
-                          {confirmationLoading ? '⏳ Participando...' : '✅ Sim'}
-                        </button>
+                {showConfirmationModal && selectedAppointmentForConfirmation && (() => {
+                  const apt = selectedAppointmentForConfirmation
+                  const slotStart = parseInt(apt.startHour)
+                  const slotEnd = parseInt(apt.endHour)
+                  const daysInRange = getDaysInRange(apt.startDate, apt.endDate)
+                  const bookedIntervals = getBookedIntervals(apt.reservas, reservacaoForm.data)
+                  const availableStarts = getAvailableStartHours(slotStart, slotEnd, bookedIntervals, reservacaoForm.duracao)
+                  const maxDuracao = getMaxDuracao(slotEnd, parseInt(reservacaoForm.horaInicio), bookedIntervals)
+                  const horaFimCalc = parseInt(reservacaoForm.horaInicio) + reservacaoForm.duracao
+                  const bookedToday = getBookedHoursForDay(apt.reservas, reservacaoForm.data)
+                  const availableToday = (slotEnd - slotStart) - bookedToday
+
+                  const handleDayChange = (newData) => {
+                    const newBooked = getBookedIntervals(apt.reservas, newData)
+                    const newStarts = getAvailableStartHours(slotStart, slotEnd, newBooked, 1)
+                    setReservacaoForm(f => ({
+                      ...f,
+                      data: newData,
+                      horaInicio: String(newStarts[0] ?? slotStart).padStart(2, '0'),
+                      duracao: 1,
+                    }))
+                  }
+
+                  const handleStartChange = (newStart) => {
+                    const newBooked = bookedIntervals
+                    const newMax = getMaxDuracao(slotEnd, parseInt(newStart), newBooked)
+                    setReservacaoForm(f => ({
+                      ...f,
+                      horaInicio: newStart,
+                      duracao: Math.min(f.duracao, newMax || 1),
+                    }))
+                  }
+
+                  const handleDuracaoChange = (newDur) => {
+                    const newStarts = getAvailableStartHours(slotStart, slotEnd, bookedIntervals, newDur)
+                    const curStart = parseInt(reservacaoForm.horaInicio)
+                    const startOk = newStarts.includes(curStart)
+                    setReservacaoForm(f => ({
+                      ...f,
+                      duracao: newDur,
+                      horaInicio: startOk ? f.horaInicio : String(newStarts[0] ?? slotStart).padStart(2, '0'),
+                    }))
+                  }
+
+                  return (
+                    <div className="modal-overlay">
+                      <div className="modal-content" style={{ maxWidth: '480px' }}>
+                        <div style={{ fontSize: '36px', textAlign: 'center' }}>🗓️</div>
+                        <h3 style={{ marginTop: '12px', color: 'var(--primary)', textAlign: 'center' }}>
+                          Reservar Horário
+                        </h3>
+                        <p style={{ marginTop: '8px', textAlign: 'center', fontWeight: 600 }}>{apt.title}</p>
+                        <p style={{ textAlign: 'center', fontSize: '13px', color: '#6b7280' }}>
+                          Consultor: {apt.consultorEmail}
+                        </p>
+                        <p style={{ textAlign: 'center', fontSize: '13px', color: '#374151', marginTop: '4px' }}>
+                          Slot: {apt.startHour}:00–{apt.endHour}:00
+                          {' '}· <strong style={{ color: availableToday > 0 ? '#16a34a' : '#ef4444' }}>
+                            {availableToday}h disponível
+                          </strong>
+                        </p>
+
+                        {(apt.reservas || []).length > 0 && (
+                          <div style={{ marginTop: '12px', background: '#f9fafb', borderRadius: '8px', padding: '8px 12px', fontSize: '12px', color: '#6b7280' }}>
+                            <strong>Já reservado:</strong>
+                            {apt.reservas.map((r, i) => (
+                              <div key={i}>🔒 {r.data} · {r.horaInicio}–{r.horaFim} · {r.incubado}</div>
+                            ))}
+                          </div>
+                        )}
+
+                        <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                          {daysInRange.length > 1 && (
+                            <div>
+                              <label style={{ fontSize: '13px', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Dia</label>
+                              <select
+                                value={reservacaoForm.data}
+                                onChange={e => handleDayChange(e.target.value)}
+                                style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #d1d5db' }}
+                              >
+                                {daysInRange.map(d => <option key={d} value={d}>{d}</option>)}
+                              </select>
+                            </div>
+                          )}
+
+                          <div>
+                            <label style={{ fontSize: '13px', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Horário de início</label>
+                            <select
+                              value={reservacaoForm.horaInicio}
+                              onChange={e => handleStartChange(e.target.value)}
+                              style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #d1d5db' }}
+                            >
+                              {availableStarts.length > 0
+                                ? availableStarts.map(h => (
+                                    <option key={h} value={String(h).padStart(2, '0')}>
+                                      {String(h).padStart(2, '0')}:00
+                                    </option>
+                                  ))
+                                : <option value="">Sem horários disponíveis</option>
+                              }
+                            </select>
+                          </div>
+
+                          <div>
+                            <label style={{ fontSize: '13px', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Duração</label>
+                            <select
+                              value={reservacaoForm.duracao}
+                              onChange={e => handleDuracaoChange(parseInt(e.target.value))}
+                              style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #d1d5db' }}
+                              disabled={maxDuracao === 0}
+                            >
+                              {Array.from({ length: maxDuracao }, (_, i) => i + 1).map(d => (
+                                <option key={d} value={d}>
+                                  {d}h — até {String(parseInt(reservacaoForm.horaInicio) + d).padStart(2, '0')}:00
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          {availableStarts.length > 0 && (
+                            <p style={{ fontSize: '13px', color: '#374151', textAlign: 'center' }}>
+                              Reserva: <strong>{String(reservacaoForm.horaInicio).padStart(2, '0')}:00 às {String(horaFimCalc).padStart(2, '0')}:00</strong> no dia <strong>{reservacaoForm.data}</strong>
+                            </p>
+                          )}
+                        </div>
+
+                        <div style={{ marginTop: '24px', display: 'flex', gap: '12px' }}>
+                          <button
+                            className="btn btn-secondary"
+                            onClick={() => { setShowConfirmationModal(false); setSelectedAppointmentForConfirmation(null) }}
+                            disabled={confirmationLoading}
+                            style={{ flex: 1 }}
+                          >
+                            Cancelar
+                          </button>
+                          <button
+                            className="btn btn-primary"
+                            onClick={handleConfirmAppointment}
+                            disabled={confirmationLoading || availableStarts.length === 0}
+                            style={{ flex: 1 }}
+                          >
+                            {confirmationLoading ? '⏳ Reservando...' : `Reservar ${reservacaoForm.duracao}h`}
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                )}
+                  )
+                })()}
               </div>
             )}
 

@@ -34,6 +34,7 @@ function QuestionarioForm() {
   const [isLoading, setIsLoading] = useState(false)
   const [savedData, setSavedData] = useState(null)
   const [showSaveModal, setShowSaveModal] = useState(false)
+  const [errorModal, setErrorModal] = useState({ show: false, message: '' })
   const [isConsultor, setIsConsultor] = useState(false)
   const [consultorId, setConsultorId] = useState(null)
   const [questionarioId, setQuestionarioId] = useState(null)
@@ -57,7 +58,7 @@ function QuestionarioForm() {
     const checkConsultorStatus = async () => {
       try {
         const response = await api.get('/users/me')
-        setIsConsultor(response.data?.is_consultor === true)
+        setIsConsultor(response.data?.is_consultant === true)
         setConsultorId(response.data?.id)
         setUserId(response.data?.id)
       } catch (err) {
@@ -80,56 +81,31 @@ function QuestionarioForm() {
     loadData()
   }, [isViewOnly, viewPlan, userId])
 
-  // Auto save when entering step 4 (Equipe)
+  // Load team members from API as soon as equipeId is available
   useEffect(() => {
-    const autoSaveStep4 = async () => {
-      if (currentStep === 4 && !isViewOnly && userId && !equipeId) {
-        console.log('🔄 Auto-saving on step 4...')
-
-        try {
-          const requestBody = {
-            nome_proponente: formData.nomeProponente || '',
-            user_associated: userId,
-            nome_negocio: formData.nomeNegocio || '',
-            setor_atuacao: formData.setorAtuacao || '',
-            cnpj: formData.cnpj || '',
-            business_canvas: formData.businessModelCanvas || '',
-            sumario_executivo: formData.executiveSummary || '',
-            planejamento_produto: formData.produtoServico || '',
-            planejamento_marketing: formData.estrategiaMarketing || '',
-            planejamento_estrutura: formData.planejamentoEstrutura || ''
-          }
-
-          // Add equipe only if it already exists (to prevent overwriting)
-          if (equipeId) {
-            requestBody.equipe = equipeId
-          }
-
-          // Add planejamento_mercado only if it already exists (to prevent overwriting)
-          if (planejamentoMercadoId) {
-            requestBody.planejamento_mercado = planejamentoMercadoId
-          }
-
-          console.log('📤 Auto-save request body:', requestBody)
-          const response = await api.post('/questionario', requestBody)
-
-          if (response.data?.equipe && !equipeId) {
-            setEquipeId(response.data.equipe)
-            console.log('✅ Auto-save successful! Equipe ID:', response.data.equipe)
-          }
-
-          if (response.data?.planejamento_mercado && !planejamentoMercadoId) {
-            setPlanejamentoMercadoId(response.data.planejamento_mercado)
-            console.log('✅ Planejamento Mercado ID captured:', response.data.planejamento_mercado)
-          }
-        } catch (error) {
-          console.error('❌ Auto-save error:', error)
+    const fetchTeamMembers = async () => {
+      if (!equipeId) return
+      try {
+        const response = await api.get(`/membros/${equipeId}`)
+        if (Array.isArray(response.data)) {
+          const members = response.data.map((m) => ({
+            id: m.id,
+            backendId: m.id,
+            nome: m.nome || '',
+            formacaoAcademica: m.formacao_academica || '',
+            experiencia: m.experiencia || '',
+            email: m.email || '',
+            telefone: m.telefone || '',
+          }))
+          setTeamMembers(members)
         }
+      } catch (error) {
+        console.error('❌ Error loading team members:', error)
       }
     }
+    fetchTeamMembers()
+  }, [equipeId])
 
-    autoSaveStep4()
-  }, [currentStep, isViewOnly, userId])
 
 
   const loadQuestionnaireData = async () => {
@@ -161,7 +137,7 @@ function QuestionarioForm() {
           produtoServico: data.planejamento_produto || data.produto_servico || '',
           analiseFornecedores: data.planejamento_mercado_rel?.fornecedores || data.fornecedores || data.analise_fornecedores || '',
           analiseCompetidores: data.planejamento_mercado_rel?.concorrentes || data.concorrentes || data.analise_competidores || '',
-          planejamentoMercado: data.planejamento_mercado_rel?.analise_acao || data.analise_acao || data.planejamento_mercado || '',
+          planejamentoMercado: data.planejamento_mercado_rel?.analise_acao || data.analise_acao || '',
           estrategiaMarketing: data.planejamento_marketing || data.estrategia_marketing || '',
           planejamentoEstrutura: data.planejamento_estrutura || '',
           planejamentoFinanceiro: data.planejamento_financeiro || ''
@@ -185,18 +161,7 @@ function QuestionarioForm() {
           console.log('✅ Planejamento Mercado ID loaded:', data.planejamento_mercado)
         }
 
-        // Load team members if present
-        if (data.membros && Array.isArray(data.membros)) {
-          const membersWithIds = data.membros.map(member => ({
-            id: member.id || Date.now() + Math.random(),
-            nome: member.nome || '',
-            formacaoAcademica: member.formacao || member.formacaoAcademica || '',
-            experiencia: member.experiencia || '',
-            email: member.email || ''
-          }))
-          setTeamMembers(membersWithIds)
-          console.log('✅ Team members loaded:', membersWithIds)
-        }
+        // Team members are loaded via dedicated GET /membros/{equipeId} effect
 
         // Load uploaded file if present
         const filePath = data.planejamento_mercado_rel?.upload_file_path || data.upload_file_path
@@ -222,7 +187,30 @@ function QuestionarioForm() {
       if (error.response?.status !== 404) {
         console.error('Error details:', error.message)
       } else {
-        console.log('ℹ️ No questionnaire found (404) - starting fresh')
+        console.log('ℹ️ No questionnaire found (404) - creating new questionnaire for first-time user')
+        try {
+          const createResponse = await api.post('/questionario', {
+            usuario_associado: user?.email || '',
+            nome_proponente: '',
+            nome_negocio: '',
+            setor_atuacao: '',
+            cnpj: '',
+            business_canvas: '',
+            sumario_executivo: '',
+            planejamento_produto: '',
+            planejamento_marketing: '',
+            planejamento_estrutura: ''
+          })
+          if (createResponse.data?.equipe) {
+            setEquipeId(createResponse.data.equipe)
+          }
+          if (createResponse.data?.planejamento_mercado) {
+            setPlanejamentoMercadoId(createResponse.data.planejamento_mercado)
+          }
+          console.log('✅ Questionnaire created successfully for new user')
+        } catch (createError) {
+          console.error('❌ Error creating questionnaire:', createError)
+        }
       }
     }
   }
@@ -314,9 +302,10 @@ function QuestionarioForm() {
     try {
       const memberData = {
         nome: member.nome,
-        formacao: member.formacaoAcademica,
+        formacao_academica: member.formacaoAcademica,
         experiencia: member.experiencia,
-        email: member.email
+        email: member.email,
+        equipe_id: equipeId
       }
 
       console.log(`📤 Sending team member to /membros/${equipeId}:`, memberData)
@@ -325,7 +314,11 @@ function QuestionarioForm() {
       alert('Membro da equipe salvo com sucesso!')
     } catch (error) {
       console.error('❌ Error saving team member:', error)
-      alert('Erro ao salvar membro da equipe. Tente novamente.')
+      const message = error.status === 409
+        ? 'Este e-mail já está em uso. O membro deve utilizar outro e-mail.'
+        : 'Erro ao salvar membro da equipe. Tente novamente.'
+      setErrorModal({ show: true, message })
+      setTimeout(() => setErrorModal({ show: false, message: '' }), 3000)
     }
   }
 
@@ -404,9 +397,7 @@ function QuestionarioForm() {
       case 3:
         return formData.executiveSummary
       case 4:
-        return teamMembers.length > 0 && teamMembers.every(member =>
-          member.nome && member.formacaoAcademica && member.experiencia && member.email
-        )
+        return teamMembers.length > 0
       case 5:
         return formData.produtoServico
       case 6:
@@ -436,7 +427,7 @@ function QuestionarioForm() {
 
   const handleSave = async () => {
     // Prevent save if user is incubado and viewing a plan
-    if (isViewOnly && user?.is_incubado) {
+    if (isViewOnly && user?.is_incubated) {
       return
     }
 
@@ -527,7 +518,7 @@ function QuestionarioForm() {
 
       const requestBody = {
         nome_proponente: formData.nomeProponente || '',
-        user_associated: userId,
+        usuario_associado: user?.email || '',
         nome_negocio: formData.nomeNegocio || '',
         setor_atuacao: formData.setorAtuacao || '',
         cnpj: formData.cnpj || '',
@@ -562,6 +553,11 @@ function QuestionarioForm() {
         console.log('✅ Equipe ID captured:', response.data.equipe)
       }
 
+      // On step 4, fetch questionnaire to ensure equipeId is available for team members
+      if (currentStep === 4) {
+        await loadQuestionnaireData()
+      }
+
       // Capture planejamento_mercado ID if present in response
       if (response.data?.planejamento_mercado && !planejamentoMercadoId) {
         setPlanejamentoMercadoId(response.data.planejamento_mercado)
@@ -588,30 +584,9 @@ function QuestionarioForm() {
         }
       }
 
-      // If on step 6, send planejamento data to separate endpoint
-      if (currentStep === 6 && planejamentoMercadoId) {
-        try {
-          const planejamentoBody = {
-            fornecedores: formData.analiseFornecedores || '',
-            concorrentes: formData.analiseCompetidores || '',
-            analise_acao: formData.planejamentoMercado || '',
-            upload_file_path: uploadedFiles.length > 0 ? uploadedFiles[0].name : ''
-          }
-
-          console.log(`📤 Sending planejamento data to PUT /planejamento/${planejamentoMercadoId}`)
-          console.log('📦 Planejamento body:', planejamentoBody)
-          console.log('🆔 Planejamento Mercado ID:', planejamentoMercadoId)
-          console.log('📎 Uploaded file name:', uploadedFiles.length > 0 ? uploadedFiles[0].name : 'None')
-
-          const planejamentoResponse = await api.put(`/planejamento/${planejamentoMercadoId}`, planejamentoBody)
-          console.log('✅ Planejamento data saved successfully!', planejamentoResponse.data)
-        } catch (planejamentoError) {
-          console.error('❌ Error saving planejamento data:', planejamentoError)
-          alert('Erro ao salvar dados do planejamento de mercado.')
-        }
-      } else if (currentStep === 6 && !planejamentoMercadoId) {
-        console.warn('⚠️ Cannot save planejamento data: planejamentoMercadoId not available')
-        alert('Erro: ID do planejamento de mercado não encontrado. Por favor, salve o questionário primeiro nas abas anteriores.')
+      // If on step 6, send planejamento data
+      if (currentStep === 6) {
+        await savePlanejamento(formData, uploadedFiles)
       }
 
       // Update state with the email for current step only
@@ -630,31 +605,62 @@ function QuestionarioForm() {
     }
   }
 
+  const savePlanejamento = async (currentFormData, currentFiles) => {
+    if (!planejamentoMercadoId) return
+    try {
+      const planejamentoBody = {
+        fornecedores: currentFormData.analiseFornecedores || '',
+        concorrentes: currentFormData.analiseCompetidores || '',
+        analise_acao: currentFormData.planejamentoMercado || '',
+        upload_file_path: currentFiles.length > 0 ? currentFiles[0].name : ''
+      }
+      await api.put(`/planejamento/${planejamentoMercadoId}`, planejamentoBody)
+      console.log('✅ Planejamento data saved successfully!')
+    } catch (planejamentoError) {
+      console.error('❌ Error saving planejamento data:', planejamentoError)
+    }
+  }
+
+  const handleStepClick = async (stepNumber) => {
+    if (!isStepAccessible(stepNumber)) return
+    if (stepNumber === 4 && !isViewOnly) {
+      await handleSave()
+    }
+    if (currentStep === 6 && !isViewOnly) {
+      await savePlanejamento(formData, uploadedFiles)
+    }
+    setCurrentStep(stepNumber)
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
 
     if (currentStep < steps.length) {
-      setCurrentStep(currentStep + 1)
+      const nextStep = currentStep + 1
+      if (nextStep === 4 && !isViewOnly) {
+        await handleSave()
+      }
+      if (currentStep === 6 && !isViewOnly) {
+        await savePlanejamento(formData, uploadedFiles)
+      }
+      setCurrentStep(nextStep)
     } else {
       // Final step - submit the form
       setIsLoading(true)
 
       const finalData = {
-        timestamp: new Date().toISOString(),
-        formData: formData,
-        teamMembers: teamMembers.map(member => ({
-          nome: member.nome,
-          formacaoAcademica: member.formacaoAcademica,
-          experiencia: member.experiencia,
-          email: member.email
-        })),
-        uploadedFiles: uploadedFiles && Array.isArray(uploadedFiles) ? uploadedFiles.map(file => ({
-          name: file.name || '',
-          size: file.size || 0,
-          type: file.type || '',
-          lastModified: file.lastModified || null
-        })) : [],
-        notes: notes
+        nome_proponente: formData.nomeProponente || '',
+        usuario_associado: user?.email || '',
+        nome_negocio: formData.nomeNegocio || '',
+        setor_atuacao: formData.setorAtuacao || '',
+        cnpj: formData.cnpj || '',
+        business_canvas: formData.businessModelCanvas || '',
+        sumario_executivo: formData.executiveSummary || '',
+        planejamento_produto: formData.produtoServico || '',
+        planejamento_marketing: formData.estrategiaMarketing || '',
+        planejamento_estrutura: formData.planejamentoEstrutura || '',
+        ...(equipeId ? { equipe: equipeId } : {}),
+        ...(planejamentoMercadoId ? { planejamento_mercado: planejamentoMercadoId } : {})
       }
 
       try {
@@ -681,6 +687,16 @@ function QuestionarioForm() {
               console.error('⚠️ Warning: Consultor update failed:', updateError)
               // Continue even if update fails
             }
+          }
+
+          try {
+            await api.put('/status', {
+              user_email: user?.email || '',
+              status_type: 'completed'
+            })
+            console.log('✅ Status updated to completed!')
+          } catch (statusError) {
+            console.error('⚠️ Warning: Status update failed:', statusError)
           }
 
           setIsLoading(false)
@@ -711,7 +727,7 @@ function QuestionarioForm() {
             type="button"
             className="save-header-btn"
             onClick={handleSave}
-            disabled={isViewOnly && user?.is_incubado}
+            disabled={isViewOnly && user?.is_incubated}
           >
             Salvar
           </button>
@@ -735,13 +751,23 @@ function QuestionarioForm() {
         </div>
       )}
 
+      {errorModal.show && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-icon" style={{ color: '#e53e3e' }}>✕</div>
+            <h3 style={{ color: '#e53e3e' }}>Erro</h3>
+            <p>{errorModal.message}</p>
+          </div>
+        </div>
+      )}
+
       <div className="questionario-content">
         <div className="steps-container">
           {steps.map((step) => (
             <button
               key={step.number}
               className={`step-button ${currentStep === step.number ? 'active' : ''} ${isStepComplete(step.number) ? 'complete' : 'incomplete'} ${!isStepAccessible(step.number) ? 'locked' : ''}`}
-              onClick={() => isStepAccessible(step.number) && setCurrentStep(step.number)}
+              onClick={() => handleStepClick(step.number)}
               disabled={!isStepAccessible(step.number)}
               title={!isStepAccessible(step.number) ? `Complete a etapa ${step.number - 1} antes` : step.title}
             >

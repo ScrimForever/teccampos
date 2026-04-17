@@ -1,0 +1,33 @@
+name: Deploy to DigitalOcean
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd /var/www/app
+            git pull origin main
+
+            # Backend
+            cd backend/tec
+            source .venv/bin/activate
+            uv sync
+            deactivate
+            sudo systemctl restart uvicorn
+
+            # Frontend
+            cd /var/www/app/frontend
+            npm install
+            npm run build
+            sudo systemctl restart nginx

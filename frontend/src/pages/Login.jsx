@@ -35,8 +35,11 @@ function Login() {
       console.log('📊 Status response:', statusResponse.data)
       console.log('📌 status_type:', statusResponse.data?.status_type)
 
-      // Verificar se status_type é "in_progress"
-      if (statusResponse.data?.status_type === 'in_progress') {
+      const statusType = statusResponse.data?.status_type
+      if (statusType === 'completed') {
+        console.log('➡️ Status completed, redirecting to dashboard')
+        navigate('/dashboard', { replace: true })
+      } else if (statusType === 'in_progress') {
         console.log('➡️ Redirecting to questionario-form')
         navigate('/questionario-form', { replace: true })
       } else {

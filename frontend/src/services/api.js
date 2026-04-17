@@ -67,7 +67,7 @@ class ApiService {
       }
     } catch (error) {
       if (error.name === 'TypeError' && error.message.includes('fetch')) {
-        throw new Error('Cannot connect to API. Please ensure the server is running.')
+        throw new Error('A API não está disponivel no momento. Por favor, tente mais tarde.')
       }
       throw error
     }
