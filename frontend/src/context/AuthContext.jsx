@@ -11,13 +11,12 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     const token = api.getToken()
     const email = localStorage.getItem('userEmail')
+    const isConsultant = localStorage.getItem('isConsultant') === 'true'
 
     if (token && email) {
-      // If token and email exist in localStorage, restore the session
-      // Token will be validated automatically when making API calls
       api.setToken(token)
       setIsAuthenticated(true)
-      setUser({ email, token })
+      setUser({ email, token, is_consultant: isConsultant })
     }
 
     setIsLoading(false)
@@ -26,8 +25,10 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     if (isAuthenticated && user) {
       localStorage.setItem('userEmail', user.email)
+      localStorage.setItem('isConsultant', user.is_consultant ? 'true' : 'false')
     } else {
       localStorage.removeItem('userEmail')
+      localStorage.removeItem('isConsultant')
     }
   }, [isAuthenticated, user])
 
@@ -45,8 +46,14 @@ export function AuthProvider({ children }) {
       }
 
       api.setToken(token)
+
+      const meResponse = await api.get('/users/me')
+      const isConsultant = meResponse.data?.is_consultant ?? false
+
+      const userData = { email, token, is_consultant: isConsultant }
       setIsAuthenticated(true)
-      setUser({ email, token })
+      setUser(userData)
+      return userData
     } catch (error) {
       api.setToken(null)
       throw error

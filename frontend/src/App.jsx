@@ -8,7 +8,8 @@ import QuestionarioForm from './pages/QuestionarioForm'
 import ProtectedRoute from './components/ProtectedRoute'
 
 function AppRoutes() {
-  const { isAuthenticated, isLoading } = useAuth()
+  const { isAuthenticated, isLoading, user } = useAuth()
+  const isConsultant = user?.is_consultant ?? false
 
   if (isLoading) {
     return (
@@ -29,11 +30,11 @@ function AppRoutes() {
     <Routes>
       <Route
         path="/login"
-        element={isAuthenticated ? <Navigate to="/questionario-form" replace /> : <Login />}
+        element={isAuthenticated ? <Navigate to={isConsultant ? '/dashboard' : '/questionario-form'} replace /> : <Login />}
       />
       <Route
         path="/register"
-        element={isAuthenticated ? <Navigate to="/questionario-form" replace /> : <Register />}
+        element={isAuthenticated ? <Navigate to={isConsultant ? '/dashboard' : '/questionario-form'} replace /> : <Register />}
       />
       <Route
         path="/questionario-form"
@@ -51,7 +52,7 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
-      <Route path="/" element={<Navigate to="/questionario-form" replace />} />
+      <Route path="/" element={<Navigate to={isConsultant ? '/dashboard' : '/questionario-form'} replace />} />
     </Routes>
   )
 }

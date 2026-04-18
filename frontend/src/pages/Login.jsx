@@ -27,24 +27,21 @@ function Login() {
     setLoading(true)
 
     try {
-      await login(username, password)
-      console.log('✅ Login successful, checking status...')
+      const loggedUser = await login(username, password)
 
-      // Consultar o endpoint /status
+      if (loggedUser?.is_consultant) {
+        navigate('/dashboard', { replace: true })
+        return
+      }
+
+      // Usuário comum: verificar status do questionário
       const statusResponse = await api.get('/status')
-      console.log('📊 Status response:', statusResponse.data)
-      console.log('📌 status_type:', statusResponse.data?.status_type)
-
       const statusType = statusResponse.data?.status_type
+
       if (statusType === 'completed') {
-        console.log('➡️ Status completed, redirecting to dashboard')
         navigate('/dashboard', { replace: true })
-      } else if (statusType === 'in_progress') {
-        console.log('➡️ Redirecting to questionario-form')
-        navigate('/questionario-form', { replace: true })
       } else {
-        console.log('➡️ Redirecting to dashboard')
-        navigate('/dashboard', { replace: true })
+        navigate('/questionario-form', { replace: true })
       }
     } catch (err) {
       console.error('❌ Login error:', err)
