@@ -785,31 +785,22 @@ function Dashboard() {
     </div>
 
   </div>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   <script>
     async function downloadHTML() {
       const btn = document.querySelector('.btn-download');
       btn.textContent = '⏳ Gerando...';
       btn.disabled = true;
       try {
-        const { jsPDF } = window.jspdf;
         const pagina = document.querySelector('.pagina');
-        const canvas = await html2canvas(pagina, { scale: 2, useCORS: true });
-        const imgData = canvas.toDataURL('image/jpeg', 0.95);
-        const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-        const pageW = pdf.internal.pageSize.getWidth();
-        const pageH = pdf.internal.pageSize.getHeight();
-        const imgH = (canvas.height * pageW) / canvas.width;
-        let posY = 0;
-        let remaining = imgH;
-        while (remaining > 0) {
-          pdf.addImage(imgData, 'JPEG', 0, -posY, pageW, imgH);
-          remaining -= pageH;
-          posY += pageH;
-          if (remaining > 0) pdf.addPage();
-        }
-        pdf.save('relatorio-${nomeArquivo}.pdf');
+        await html2pdf().set({
+          margin: 0,
+          filename: 'relatorio-${nomeArquivo}.pdf',
+          image: { type: 'jpeg', quality: 0.95 },
+          html2canvas: { scale: 2, useCORS: true },
+          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+          pagebreak: { mode: 'css', avoid: ['.secao', 'tr'] }
+        }).from(pagina).save();
       } finally {
         btn.textContent = '⬇️ Baixar PDF';
         btn.disabled = false;
@@ -1006,7 +997,9 @@ function Dashboard() {
       border-radius: 8px;
       overflow: hidden;
       border: 1px solid #e2e8f0;
+      page-break-inside: avoid;
     }
+    tr { page-break-inside: avoid; }
     thead tr {
       background: #1a4b8c;
       color: #fff;
@@ -1122,31 +1115,22 @@ function Dashboard() {
       </div>
     </div>
   </div>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   <script>
     async function downloadHTML() {
       const btn = document.querySelector('.btn-download');
       btn.textContent = '⏳ Gerando...';
       btn.disabled = true;
       try {
-        const { jsPDF } = window.jspdf;
         const pagina = document.querySelector('.pagina');
-        const canvas = await html2canvas(pagina, { scale: 2, useCORS: true });
-        const imgData = canvas.toDataURL('image/jpeg', 0.95);
-        const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-        const pageW = pdf.internal.pageSize.getWidth();
-        const pageH = pdf.internal.pageSize.getHeight();
-        const imgH = (canvas.height * pageW) / canvas.width;
-        let posY = 0;
-        let remaining = imgH;
-        while (remaining > 0) {
-          pdf.addImage(imgData, 'JPEG', 0, -posY, pageW, imgH);
-          remaining -= pageH;
-          posY += pageH;
-          if (remaining > 0) pdf.addPage();
-        }
-        pdf.save('relatorio-membros.pdf');
+        await html2pdf().set({
+          margin: 0,
+          filename: 'relatorio-membros.pdf',
+          image: { type: 'jpeg', quality: 0.95 },
+          html2canvas: { scale: 2, useCORS: true },
+          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+          pagebreak: { mode: 'css', avoid: ['table', 'tr'] }
+        }).from(pagina).save();
       } finally {
         btn.textContent = '⬇️ Baixar PDF';
         btn.disabled = false;
