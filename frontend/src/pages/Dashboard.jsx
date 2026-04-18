@@ -245,6 +245,7 @@ function Dashboard() {
   const [agendaOriginalData, setAgendaOriginalData] = useState({})  // Armazena JSON original das agendas
   const [hasChanges, setHasChanges] = useState(false)  // Rastreia se há modificações na agenda
   const [reservacaoForm, setReservacaoForm] = useState({ data: '', horaInicio: '09', duracao: 1 })
+  const [editingAppointment, setEditingAppointment] = useState(null)
   const [stats, setStats] = useState({
     totalUsers: 1250,
     pendingReviews: 23,
@@ -1685,13 +1686,11 @@ function Dashboard() {
     setShowAppointmentModal(true)
   }
 
-  const checkTimeConflict = (startDate, endDate, startHour, endHour, isOpenAppointment) => {
+  const checkTimeConflict = (startDate, endDate, startHour, endHour, isOpenAppointment, excludeId = null) => {
     // Verificar se há conflito com compromissos do MESMO consultor
     for (const apt of appointments) {
-      // Só verifica conflito com compromissos do mesmo consultor
-      if (apt.consultorEmail !== user?.email) {
-        continue
-      }
+      if (apt.consultorEmail !== user?.email) continue
+      if (excludeId !== null && apt.id === excludeId) continue
 
       // Converter datas para comparação
       const newStart = new Date(startDate)
@@ -1764,7 +1763,7 @@ function Dashboard() {
     const appointmentStartHour = appointmentForm.isOpenAppointment ? '00' : appointmentForm.startHour
     const appointmentEndHour = appointmentForm.isOpenAppointment ? '23' : appointmentForm.endHour
 
-    if (checkTimeConflict(appointmentStartDate, appointmentEndDate, appointmentStartHour, appointmentEndHour, appointmentForm.isOpenAppointment)) {
+    if (checkTimeConflict(appointmentStartDate, appointmentEndDate, appointmentStartHour, appointmentEndHour, appointmentForm.isOpenAppointment, editingAppointment?.id ?? null)) {
       const errorMessage = `Conflito de Horário!\n\nJá existe um compromisso seu agendado para este período.\n\nPeriodo: ${appointmentStartDate}${appointmentEndDate !== appointmentStartDate ? ` até ${appointmentEndDate}` : ''}\nHorário: ${String(appointmentStartHour).padStart(2, '0')}:00 às ${String(appointmentEndHour).padStart(2, '0')}:00\n\nNão é possível agendar dois compromissos seu no mesmo horário.`
       setMessageModalType('error')
       setMessageModalContent(errorMessage)
@@ -1781,7 +1780,7 @@ function Dashboard() {
     }
 
     const newAppointment = {
-      id: Date.now(),
+      id: editingAppointment ? editingAppointment.id : Date.now(),
       startDate: appointmentStartDate,
       endDate: appointmentEndDate,
       startHour: appointmentForm.isOpenAppointment ? '00' : appointmentForm.startHour,
@@ -1789,6 +1788,8 @@ function Dashboard() {
       isOpenAppointment: appointmentForm.isOpenAppointment,
       consultorEmail: user?.email,
       consultorId: user?.id,
+      reservas: editingAppointment ? (editingAppointment.reservas || []) : [],
+      agendaId: editingAppointment ? editingAppointment.agendaId : undefined,
       ...appointmentForm
     }
 
@@ -1835,9 +1836,13 @@ function Dashboard() {
       console.log('✅ Resposta do servidor:', response)
       console.log('📊 Status:', response.status)
 
-      // Adicionar o novo compromisso ao estado APÓS confirmação do servidor
-      setAppointments([...appointments, newAppointment])
-      setHasChanges(true)  // Marca como modificado
+      if (editingAppointment) {
+        setAppointments(prev => prev.map(a => a.id === newAppointment.id ? newAppointment : a))
+      } else {
+        setAppointments(prev => [...prev, newAppointment])
+      }
+      setHasChanges(true)
+      setEditingAppointment(null)
 
       setShowAppointmentModal(false)
       setAppointmentForm({
@@ -1852,8 +1857,9 @@ function Dashboard() {
       setSelectedDateRangeStart(null)
       setSelectedDateRangeEnd(null)
 
+      const verb = editingAppointment ? 'atualizado' : 'criado'
       setMessageModalType('success')
-      setMessageModalContent(`✅ Agendamento criado e salvo com sucesso!\n\n${newAppointment.title}`)
+      setMessageModalContent(`✅ Agendamento ${verb} com sucesso!\n\n${newAppointment.title}`)
       setShowMessageModal(true)
     } catch (error) {
       console.error('❌ Erro ao enviar agendamento:', error)
@@ -1886,6 +1892,7 @@ function Dashboard() {
 
   const handleCancelAppointment = () => {
     setShowAppointmentModal(false)
+    setEditingAppointment(null)
     setAppointmentForm({
       title: '',
       description: '',
@@ -1895,14 +1902,32 @@ function Dashboard() {
     })
   }
 
+  const handleEditAppointment = (apt) => {
+    setEditingAppointment(apt)
+    setAppointmentForm({
+      title: apt.title,
+      description: apt.description || '',
+      responsible: apt.responsible || '',
+      startHour: apt.startHour,
+      endHour: apt.endHour,
+      isOpenAppointment: apt.isOpenAppointment || false,
+    })
+    setSelectedDate(apt.startDate)
+    setSelectedDateRangeStart(apt.startDate)
+    setSelectedDateRangeEnd(apt.endDate)
+    setShowAppointmentModal(true)
+  }
+
   const handleAppointmentClick = (apt) => {
     if (isConsultor || !isIncubado) return
 
-    // Usuário já tem reserva neste slot?
-    const jaTemReserva = (apt.reservas || []).some(r => r.incubado === user?.email)
-    if (jaTemReserva) {
+    // Incubado já tem reserva em qualquer compromisso desta agenda?
+    const jaTemReservaNestaAgenda = appointments
+      .filter(a => a.agendaId === apt.agendaId)
+      .some(a => (a.reservas || []).some(r => r.incubado === user?.email))
+    if (jaTemReservaNestaAgenda) {
       setMessageModalType('error')
-      setMessageModalContent('Você já possui uma reserva neste agendamento.')
+      setMessageModalContent('Você já possui uma reserva nesta agenda. Só é permitida uma reserva por agenda.')
       setShowMessageModal(true)
       return
     }
@@ -2430,14 +2455,29 @@ function Dashboard() {
                                   const bookedToday = getBookedHoursForDay(apt.reservas, selectedDate)
                                   const availableToday = slotTotalHours - bookedToday
                                   const userHasReserva = (apt.reservas || []).some(r => r.incubado === user?.email)
+                                  const userHasReservaNestaAgenda = isIncubado && appointments
+                                    .filter(a => a.agendaId === apt.agendaId)
+                                    .some(a => (a.reservas || []).some(r => r.incubado === user?.email))
                                   const isFull = availableToday <= 0
+                                  const canEdit = isConsultor && apt.consultorEmail === user?.email && (apt.reservas || []).length === 0
                                   return (
                                   <div
                                     key={apt.id}
-                                    className={`appointment-item ${userHasReserva ? 'participated' : (isFull ? '' : (!isConsultor && isIncubado ? 'clickable' : ''))}`}
+                                    className={`appointment-item ${userHasReserva ? 'participated' : (userHasReservaNestaAgenda ? 'participated' : (isFull ? '' : (!isConsultor && isIncubado ? 'clickable' : '')))} `}
                                     onClick={() => handleAppointmentClick(apt)}
                                   >
-                                    <div className="apt-title">{apt.title}</div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                      <div className="apt-title">{apt.title}</div>
+                                      {canEdit && (
+                                        <button
+                                          className="btn btn-secondary"
+                                          style={{ fontSize: '12px', padding: '2px 10px', marginLeft: '8px', flexShrink: 0 }}
+                                          onClick={(e) => { e.stopPropagation(); handleEditAppointment(apt) }}
+                                        >
+                                          Editar
+                                        </button>
+                                      )}
+                                    </div>
                                     <div className="apt-consultor">
                                       💼 Consultor: {apt.consultorEmail}
                                     </div>
@@ -2457,10 +2497,10 @@ function Dashboard() {
                                         ))}
                                       </div>
                                     )}
-                                    {!isFull && !userHasReserva && !isConsultor && isIncubado && (
+                                    {!isFull && !userHasReservaNestaAgenda && !isConsultor && isIncubado && (
                                       <div className="apt-click-hint">Clique para reservar um horário</div>
                                     )}
-                                    {isFull && !userHasReserva && !isConsultor && isIncubado && (
+                                    {isFull && !userHasReservaNestaAgenda && !isConsultor && isIncubado && (
                                       <div className="apt-click-hint" style={{ color: '#ef4444' }}>Sem horários disponíveis</div>
                                     )}
                                     {apt.description && <div className="apt-description">{apt.description}</div>}
@@ -2508,7 +2548,7 @@ function Dashboard() {
                   <div className="modal-overlay appointment-modal-overlay">
                     <div className="appointment-modal">
                       <div className="modal-header">
-                        <h2>Agendar Compromisso</h2>
+                        <h2>{editingAppointment ? 'Editar Compromisso' : 'Agendar Compromisso'}</h2>
                         <button
                           className="modal-close"
                           onClick={handleCancelAppointment}
@@ -2650,7 +2690,7 @@ function Dashboard() {
                           className="btn btn-primary"
                           onClick={handleScheduleAppointment}
                         >
-                          Agendar
+                          {editingAppointment ? 'Salvar Alterações' : 'Agendar'}
                         </button>
                       </div>
                     </div>
