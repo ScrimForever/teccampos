@@ -539,7 +539,7 @@ function Dashboard() {
 
     @page {
       size: A4;
-      margin: 0;
+      margin: 3cm;
     }
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -911,7 +911,7 @@ function Dashboard() {
   <title>Relatório de Membros — ${raw.nome_negocio || raw.nome_proponente}</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-    @page { size: A4; margin: 0; }
+    @page { size: A4; margin: 3cm; }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
