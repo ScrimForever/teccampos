@@ -5,7 +5,8 @@ class Configuration(BaseSettings):
 
     model_config = SettingsConfigDict()
 
-    DATABASE_URL: str = "postgresql+asyncpg://postgres:@localhost/postgres"
+    X_S: str = ""
+    DATABASE_URL: str = f"postgresql+asyncpg://postgres:{X_S}@localhost/postgres"
 
 
 config = Configuration()
