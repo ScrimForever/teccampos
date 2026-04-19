@@ -644,6 +644,7 @@ function Dashboard() {
       border-radius: 6px;
       overflow: hidden;
       page-break-inside: avoid;
+      break-inside: avoid;
     }
 
     .secao-titulo {
@@ -799,7 +800,7 @@ function Dashboard() {
           image: { type: 'jpeg', quality: 0.95 },
           html2canvas: { scale: 2, useCORS: true },
           jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-          pagebreak: { mode: 'css', avoid: ['.secao', 'tr'] }
+          pagebreak: { mode: ['css', 'legacy'], avoid: ['.secao'] }
         }).from(pagina).save();
       } finally {
         btn.textContent = '⬇️ Baixar PDF';
@@ -926,7 +927,6 @@ function Dashboard() {
       min-height: 297mm;
       margin: 0 auto;
       background: #fff;
-      overflow: hidden;
       box-shadow: 0 4px 32px rgba(0,0,0,0.15);
     }
 
@@ -997,9 +997,10 @@ function Dashboard() {
       border-radius: 8px;
       overflow: hidden;
       border: 1px solid #e2e8f0;
-      page-break-inside: avoid;
+      page-break-inside: auto;
+      break-inside: auto;
     }
-    tr { page-break-inside: avoid; }
+    tr { page-break-inside: avoid; break-inside: avoid; }
     thead tr {
       background: #1a4b8c;
       color: #fff;
@@ -1129,7 +1130,7 @@ function Dashboard() {
           image: { type: 'jpeg', quality: 0.95 },
           html2canvas: { scale: 2, useCORS: true },
           jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-          pagebreak: { mode: 'css', avoid: ['table', 'tr'] }
+          pagebreak: { mode: ['css', 'legacy'], avoid: ['tr'] }
         }).from(pagina).save();
       } finally {
         btn.textContent = '⬇️ Baixar PDF';
