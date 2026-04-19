@@ -22,13 +22,12 @@ jobs:
             
             # Backend
             cd backend/tec
-            source .venv/bin/activate
-            /root/.local/bin/uv pip install -r requirements.txt
-            deactivate
+            /root/.local/bin/uv sync
             sudo systemctl restart uvicorn
             
             # Frontend
+            export PATH="/root/.nvm/versions/node/v24.15.0/bin:$PATH"
             cd /var/www/app/frontend
-            /root/.nvm/versions/node/v24.15.0/bin/npm install
-            /root/.nvm/versions/node/v24.15.0/bin/npm run build
+            npm install
+            npm run build
             sudo systemctl restart nginx
