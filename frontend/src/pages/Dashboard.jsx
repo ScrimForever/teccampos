@@ -795,7 +795,7 @@ function Dashboard() {
       try {
         const pagina = document.querySelector('.pagina');
         await html2pdf().set({
-          margin: 0,
+          margin: 30,
           filename: 'relatorio-${nomeArquivo}.pdf',
           image: { type: 'jpeg', quality: 0.95 },
           html2canvas: { scale: 2, useCORS: true },
@@ -1125,7 +1125,7 @@ function Dashboard() {
       try {
         const pagina = document.querySelector('.pagina');
         await html2pdf().set({
-          margin: 0,
+          margin: 30,
           filename: 'relatorio-membros.pdf',
           image: { type: 'jpeg', quality: 0.95 },
           html2canvas: { scale: 2, useCORS: true },
