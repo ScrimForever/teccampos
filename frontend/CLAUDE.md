@@ -16,3 +16,4 @@ You make best code and best optimization as possible. Given the best for the cli
 Rules:
 - Use pythonic code.
 - Projects use FastAPI, use best practices to analytics this code.
+

@@ -539,7 +539,7 @@ function Dashboard() {
 
     @page {
       size: A4;
-      margin: 3cm;
+      margin: 0;
     }
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -726,7 +726,7 @@ function Dashboard() {
     /* ── Print ── */
     @media print {
       .acoes-bar { display: none; }
-      body { background: #fff; padding: 0; }
+      body { background: #fff; padding: 3cm; }
       .pagina { box-shadow: none; width: 100%; min-height: 0; }
       .secao { page-break-inside: avoid; }
       .cabecalho { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -911,7 +911,7 @@ function Dashboard() {
   <title>Relatório de Membros — ${raw.nome_negocio || raw.nome_proponente}</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-    @page { size: A4; margin: 3cm; }
+    @page { size: A4; margin: 0; }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
@@ -1059,7 +1059,7 @@ function Dashboard() {
 
     @media print {
       .acoes-bar { display: none; }
-      body { background: #fff; padding: 0; }
+      body { background: #fff; padding: 3cm; }
       .pagina { box-shadow: none; width: 100%; min-height: 0; }
       .cabecalho { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       thead tr { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
