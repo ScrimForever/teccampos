@@ -23,12 +23,12 @@ jobs:
             # Backend
             cd backend/tec
             source .venv/bin/activate
-            uv pip install -r requirements.txt
+            /root/.local/bin/uv pip install -r requirements.txt
             deactivate
             sudo systemctl restart uvicorn
             
             # Frontend
             cd /var/www/app/frontend
-            npm install
-            npm run build
+            /root/.nvm/versions/node/v24.15.0/bin/npm install
+            /root/.nvm/versions/node/v24.15.0/bin/npm run build
             sudo systemctl restart nginx
