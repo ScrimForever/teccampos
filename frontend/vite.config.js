@@ -5,6 +5,11 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 3000,
-    allowedHosts: ['incisory-londa-populously.ngrok-free.dev']
+    allowedHosts: ['incisory-londa-populously.ngrok-free.dev'],
+    hmr: {
+      clientPort: 443,
+      protocol: 'wss',
+      host: 'incisory-londa-populously.ngrok-free.dev',
+    },
   }
 })
