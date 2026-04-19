@@ -3,7 +3,7 @@ from pydantic import computed_field
 
 class Configuration(BaseSettings):
 
-    model_config = SettingsConfigDict()
+    model_config = SettingsConfigDict(env_file="/var/www/app/backend/tec/.env")
 
     X_S: str = ""
 
