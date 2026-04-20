@@ -40,6 +40,19 @@ async def create_agendamento(
     return await AgendaRepository.create(agenda, user.email, db)
 
 
+@agenda_router.delete("/agendamento/{agenda_id}", status_code=204)
+async def delete_agendamento(
+    agenda_id: int,
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+    user: User = Depends(current_active_user)
+):
+    if not user.is_consultant:
+        raise HTTPException(status_code=403, detail="Apenas consultores podem excluir agendamentos")
+    deleted = await AgendaRepository.delete_agenda(agenda_id, user.email, db)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Agenda não encontrada")
+
+
 @agenda_router.put("/agendamento/{agenda_id}", response_model=AgendaOutput)
 async def update_agendamento(
     agenda_id: int,

@@ -108,6 +108,30 @@ class AgendaRepository:
         return AgendaOutput.model_validate(agenda)
 
     @staticmethod
+    async def delete_agenda(
+        agenda_id: int,
+        consultor_email: str,
+        db_session: AsyncSession,
+    ) -> bool:
+        logger.info(f"Deleting agenda {agenda_id} for consultor: {consultor_email}")
+
+        stmt = select(Agenda).where(Agenda.id == agenda_id)
+        result = await db_session.execute(stmt)
+        agenda = result.scalar_one_or_none()
+
+        if not agenda:
+            logger.warning(f"Agenda {agenda_id} not found")
+            return False
+
+        if agenda.consultor_email != consultor_email:
+            raise HTTPException(status_code=403, detail="Não autorizado a excluir esta agenda")
+
+        await db_session.delete(agenda)
+        await db_session.commit()
+        logger.success(f"Deleted agenda {agenda_id}")
+        return True
+
+    @staticmethod
     async def create_lote(
         lote: AgendaLoteInput,
         consultor_email: str,

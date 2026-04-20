@@ -249,6 +249,8 @@ function Dashboard() {
   const [editingReservas, setEditingReservas] = useState([])
   const [horarioMode, setHorarioMode] = useState('same') // 'same' | 'different'
   const [horariosPerDia, setHorariosPerDia] = useState([])
+  const [editDayMode, setEditDayMode] = useState(false)
+  const [editDaysPerDia, setEditDaysPerDia] = useState([])
   const [stats, setStats] = useState({
     totalUsers: 1250,
     pendingReviews: 23,
@@ -1785,6 +1787,8 @@ function Dashboard() {
       setEditingReservas([])
       setHorarioMode('same')
       setHorariosPerDia([])
+      setEditDayMode(false)
+      setEditDaysPerDia([])
     }
 
     const _buildPayload = (startDate, endDate, startHour, endHour) => {
@@ -1835,6 +1839,75 @@ function Dashboard() {
         _resetForm()
         setMessageModalType('success')
         setMessageModalContent(`✅ ${created.length} agendamentos criados com sucesso!\n\n${appointmentForm.title}`)
+        setShowMessageModal(true)
+      } catch (error) {
+        const statusCode = error.status || 'Erro desconhecido'
+        const responseContent = error.responseData ? JSON.stringify(error.responseData, null, 2) : error.message
+        setMessageModalType('error')
+        setMessageModalContent(`STATUS: ${statusCode}\n\nRESPOSTA DO SERVIDOR:\n\n${responseContent}`)
+        setShowMessageModal(true)
+      }
+      return
+    }
+
+    // Modo edição por dia: DELETE range original + POST lote individual por dia
+    const isEditDayMode = editDayMode && editingAppointment?.agendaId && editDaysPerDia.length > 0 && !appointmentForm.isOpenAppointment
+    if (isEditDayMode) {
+      for (const dia of editDaysPerDia) {
+        if (parseInt(dia.startHour) >= parseInt(dia.endHour)) {
+          setMessageModalType('error')
+          setMessageModalContent(`Horário inválido em ${dia.date}: início (${dia.startHour}:00) deve ser menor que término (${dia.endHour}:00).`)
+          setShowMessageModal(true)
+          return
+        }
+      }
+      try {
+        await api.delete(`/agenda/agendamento/${editingAppointment.agendaId}`)
+
+        const lotePayload = {
+          agendamentos: editDaysPerDia.map(dia => ({
+            agenda_json: {
+              timestamp: new Date().toISOString(),
+              consultor: { email: user?.email, id: user?.id, nome: user?.first_name || 'N/A' },
+              totalCompromissos: 1,
+              compromissos: [{
+                id: Date.now() + Math.random(),
+                titulo: appointmentForm.title,
+                descricao: appointmentForm.description || '',
+                responsavel: appointmentForm.responsible || '',
+                dataInicio: dia.date,
+                dataFim: dia.date,
+                horaInicio: `${String(dia.startHour).padStart(2, '0')}:00`,
+                horaFim: `${String(dia.endHour).padStart(2, '0')}:00`,
+                ehCompromisoAberto: false,
+                consultorEmail: user?.email,
+                reservas: editingReservas.filter(r => r.data === dia.date),
+              }],
+            }
+          }))
+        }
+        const responses = await api.post('/agenda/agendamento/lote', lotePayload)
+        const responseList = responses.data || []
+        const created = editDaysPerDia.map((dia, idx) => ({
+          id: responseList[idx]?.id || Date.now() + idx,
+          agendaId: responseList[idx]?.id,
+          startDate: dia.date,
+          endDate: dia.date,
+          startHour: dia.startHour,
+          endHour: dia.endHour,
+          isOpenAppointment: false,
+          consultorEmail: user?.email,
+          reservas: editingReservas.filter(r => r.data === dia.date),
+          ...appointmentForm,
+        }))
+        setAppointments(prev => [
+          ...prev.filter(a => a.agendaId !== editingAppointment.agendaId),
+          ...created,
+        ])
+        setHasChanges(true)
+        _resetForm()
+        setMessageModalType('success')
+        setMessageModalContent(`✅ Range dividido em ${created.length} dia(s) com sucesso!\n\n${appointmentForm.title}`)
         setShowMessageModal(true)
       } catch (error) {
         const statusCode = error.status || 'Erro desconhecido'
@@ -1937,6 +2010,8 @@ function Dashboard() {
     setEditingReservas([])
     setHorarioMode('same')
     setHorariosPerDia([])
+    setEditDayMode(false)
+    setEditDaysPerDia([])
     setAppointmentForm({
       title: '',
       description: '',
@@ -1950,6 +2025,17 @@ function Dashboard() {
   const handleEditAppointment = (apt) => {
     setEditingAppointment(apt)
     setEditingReservas(apt.reservas || [])
+    setEditDayMode(false)
+    if (apt.startDate !== apt.endDate && !apt.isOpenAppointment) {
+      const days = getDaysInRange(apt.startDate, apt.endDate)
+      setEditDaysPerDia(days.map(date => ({
+        date,
+        startHour: apt.startHour,
+        endHour: apt.endHour,
+      })))
+    } else {
+      setEditDaysPerDia([])
+    }
     setAppointmentForm({
       title: apt.title,
       description: apt.description || '',
@@ -2630,6 +2716,82 @@ function Dashboard() {
                           </div>
                         )}
 
+                        {/* Toggle editar por dia: só aparece na edição de range multi-dia */}
+                        {editingAppointment && !appointmentForm.isOpenAppointment &&
+                          editDaysPerDia.length > 0 && (
+                          <div className="form-group">
+                            <label>Modo de edição</label>
+                            <div className="horario-mode-toggle">
+                              <label className={`horario-mode-option ${!editDayMode ? 'active' : ''}`}>
+                                <input
+                                  type="radio"
+                                  name="editMode"
+                                  checked={!editDayMode}
+                                  onChange={() => setEditDayMode(false)}
+                                />
+                                Editar range completo ({editingAppointment.startDate} até {editingAppointment.endDate})
+                              </label>
+                              <label className={`horario-mode-option ${editDayMode ? 'active' : ''}`}>
+                                <input
+                                  type="radio"
+                                  name="editMode"
+                                  checked={editDayMode}
+                                  onChange={() => setEditDayMode(true)}
+                                />
+                                Editar horário por dia
+                              </label>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Lista de dias com hora editável (modo edição por dia) */}
+                        {editingAppointment && editDayMode && editDaysPerDia.length > 0 && (
+                          <div className="form-group">
+                            <label>Horários por dia</label>
+                            <div className="horarios-per-dia-list">
+                              {editDaysPerDia.map((dia, idx) => (
+                                <div key={dia.date} className="horario-dia-row">
+                                  <span className="horario-dia-label">{dia.date}</span>
+                                  <div className="time-range-container">
+                                    <div className="time-input-group">
+                                      <label>Início</label>
+                                      <select
+                                        className="hour-select"
+                                        value={dia.startHour}
+                                        onChange={(e) => setEditDaysPerDia(prev =>
+                                          prev.map((d, i) => i === idx ? { ...d, startHour: e.target.value } : d)
+                                        )}
+                                      >
+                                        {Array.from({ length: 24 }, (_, i) => {
+                                          const hour = String(i).padStart(2, '0')
+                                          return <option key={hour} value={hour}>{hour}:00</option>
+                                        })}
+                                      </select>
+                                    </div>
+                                    <span className="time-separator">até</span>
+                                    <div className="time-input-group">
+                                      <label>Término</label>
+                                      <select
+                                        className="hour-select"
+                                        value={dia.endHour}
+                                        onChange={(e) => setEditDaysPerDia(prev =>
+                                          prev.map((d, i) => i === idx ? { ...d, endHour: e.target.value } : d)
+                                        )}
+                                      >
+                                        {Array.from({ length: 24 }, (_, i) => {
+                                          const hour = String(i).padStart(2, '0')
+                                          return <option key={hour} value={hour}>{hour}:00</option>
+                                        })}
+                                      </select>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Horário único (padrão) — oculto no modo edição por dia */}
                         {/* Toggle de modo de horário: só aparece em range multi-dia na criação */}
                         {!editingAppointment && !appointmentForm.isOpenAppointment &&
                           selectedDateRangeStart && selectedDateRangeEnd &&
@@ -2662,7 +2824,7 @@ function Dashboard() {
                         )}
 
                         {/* Horário único (padrão) */}
-                        {!appointmentForm.isOpenAppointment && horarioMode === 'same' && (
+                        {!appointmentForm.isOpenAppointment && horarioMode === 'same' && !editDayMode && (
                           <div className="form-group">
                             <label>Horário</label>
                             <div className="time-range-container">

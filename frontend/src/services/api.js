@@ -53,6 +53,10 @@ class ApiService {
         throw err
       }
 
+      if (response.status === 204) {
+        return { status: 204, data: null }
+      }
+
       const contentType = response.headers.get('content-type')
       let data
       if (contentType && contentType.includes('application/json')) {
