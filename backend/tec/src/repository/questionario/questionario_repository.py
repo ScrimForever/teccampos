@@ -29,19 +29,23 @@ class QuestionarioRepository:
             try:
                 logger.info(f"User: {user.email} está criando um novo questionário")
                 questionario = questionario_object.model_dump()
+
                 """
                     Criando EQUIPE
                 """
+
                 stmt = EquipeModel(created_at=datetime.datetime.now())
                 db.add(stmt)
                 await db.commit()
                 await db.refresh(stmt)
                 questionario.update(equipe=stmt.id)
+                logger.success("Equipe criada com sucesso")
                 # Equipe criada
 
                 """
                     Criando MERCADO
                 """
+
                 stmt = PlanejamentoMercadoModel(
                     created_at=datetime.datetime.now(),
                     usuario_associado=user.email
@@ -50,6 +54,7 @@ class QuestionarioRepository:
                 await db.commit()
                 await db.refresh(stmt)
                 questionario.update(planejamento_mercado=stmt.id)
+                logger.success("Planjamento Mercado criado com sucesso")
                 # Mercado criado
 
                 persist_object = QuestionarioModel(**questionario)
