@@ -29,6 +29,21 @@ async def create_agendamento(
     return await AgendaRepository.create(agenda, user.email, db)
 
 
+@agenda_router.put("/agendamento/{agenda_id}", response_model=AgendaOutput)
+async def update_agendamento(
+    agenda_id: int,
+    agenda: AgendaInput,
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+    user: User = Depends(current_active_user)
+):
+    if not user.is_consultant:
+        raise HTTPException(status_code=403, detail="Apenas consultores podem editar agendamentos")
+    result = await AgendaRepository.update_agenda(agenda_id, agenda, user.email, db)
+    if not result:
+        raise HTTPException(status_code=404, detail="Agenda não encontrada")
+    return result
+
+
 @agenda_router.put("/participar/{agenda_id}", response_model=AgendaOutput)
 async def participar_agendamento(
     agenda_id: int,

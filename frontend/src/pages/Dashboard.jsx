@@ -1813,14 +1813,15 @@ function Dashboard() {
       agenda_json: agendaData
     }
 
-    // Incluir agenda_id no payload quando for edição, para o backend identificar o registro
-    if (editingAppointment?.agendaId) {
-      agendaPayload.agenda_id = editingAppointment.agendaId
-    }
-
     try {
-      console.log('📤 Enviando agendamento para /agenda/agendamento:', JSON.stringify(agendaPayload, null, 2))
-      const response = await api.post('/agenda/agendamento', agendaPayload)
+      let response
+      if (editingAppointment?.agendaId) {
+        console.log('📤 Atualizando agenda', editingAppointment.agendaId, JSON.stringify(agendaPayload, null, 2))
+        response = await api.put(`/agenda/agendamento/${editingAppointment.agendaId}`, agendaPayload)
+      } else {
+        console.log('📤 Criando novo agendamento:', JSON.stringify(agendaPayload, null, 2))
+        response = await api.post('/agenda/agendamento', agendaPayload)
+      }
 
       console.log('✅ Resposta do servidor:', response)
       console.log('📊 Status:', response.status)

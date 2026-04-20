@@ -108,6 +108,65 @@ class AgendaRepository:
         return AgendaOutput.model_validate(agenda)
 
     @staticmethod
+    async def update_agenda(
+        agenda_id: int,
+        agenda_input: AgendaInput,
+        consultor_email: str,
+        db_session: AsyncSession,
+    ) -> AgendaOutput | None:
+        logger.info(f"Updating agenda {agenda_id} for consultor: {consultor_email}")
+
+        stmt = select(Agenda).where(Agenda.id == agenda_id)
+        result = await db_session.execute(stmt)
+        agenda = result.scalar_one_or_none()
+
+        if not agenda:
+            logger.warning(f"Agenda {agenda_id} not found")
+            return None
+
+        new_compromissos: list[dict] = agenda_input.agenda_json.get("compromissos", [])
+
+        # Busca compromissos existentes excluindo o próprio registro sendo editado
+        stmt_others = select(Agenda).where(
+            Agenda.consultor_email == consultor_email,
+            Agenda.id != agenda_id,
+        )
+        result_others = await db_session.execute(stmt_others)
+        other_agendas = result_others.scalars().all()
+
+        existing: list[dict] = []
+        for a in other_agendas:
+            inner = a.agenda_json.get("agenda_json", {})
+            existing.extend(inner.get("compromissos", []))
+
+        for new_c in new_compromissos:
+            for ex_c in existing:
+                if _has_conflict(new_c, ex_c):
+                    msg = (
+                        f"Conflito de horário: já existe um agendamento para o período "
+                        f"{ex_c.get('dataInicio')} a {ex_c.get('dataFim')} "
+                        f"das {ex_c.get('horaInicio')} às {ex_c.get('horaFim')}."
+                    )
+                    logger.warning(msg)
+                    raise HTTPException(status_code=409, detail=msg)
+
+        stmt_upd = (
+            update(Agenda)
+            .where(Agenda.id == agenda_id)
+            .values(
+                agenda_json=agenda_input.model_dump(),
+                updated_at=datetime.datetime.now(datetime.timezone.utc),
+            )
+        )
+        await db_session.execute(stmt_upd)
+        await db_session.commit()
+
+        refreshed = await db_session.execute(select(Agenda).where(Agenda.id == agenda_id))
+        agenda = refreshed.scalar_one()
+        logger.success(f"Updated agenda {agenda_id}")
+        return AgendaOutput.model_validate(agenda)
+
+    @staticmethod
     async def update_participacao(
         agenda_id: int,
         participacao: AgendaParticipacaoInput,
