@@ -1724,6 +1724,12 @@ function Dashboard() {
     return days
   }
 
+  const addDays = (dateStr, n) => {
+    const d = new Date(dateStr + 'T00:00:00')
+    d.setDate(d.getDate() + n)
+    return d.toISOString().slice(0, 10)
+  }
+
   const handleHorarioModeChange = (mode) => {
     setHorarioMode(mode)
     if (mode === 'different') {
@@ -1850,7 +1856,7 @@ function Dashboard() {
       return
     }
 
-    // Modo edição por dia: DELETE range original + POST lote individual por dia
+    // Modo edição por dia: DELETE range original + POST lote preservando before/after
     const isEditDayMode = editDayMode && editingAppointment?.agendaId && editDaysPerDia.length > 0 && !appointmentForm.isOpenAppointment
     if (isEditDayMode) {
       for (const dia of editDaysPerDia) {
@@ -1861,45 +1867,82 @@ function Dashboard() {
           return
         }
       }
+
+      const aptStart = editingAppointment.startDate
+      const aptEnd = editingAppointment.endDate
+      const origStartHour = editingAppointment.startHour
+      const origEndHour = editingAppointment.endHour
+      const editStart = editDaysPerDia[0].date
+      const editEnd = editDaysPerDia[editDaysPerDia.length - 1].date
+
+      // Monta a lista completa de agendamentos a criar após o DELETE
+      const _entry = (startDate, endDate, startHour, endHour, reservas = []) => ({
+        agenda_json: {
+          timestamp: new Date().toISOString(),
+          consultor: { email: user?.email, id: user?.id, nome: user?.first_name || 'N/A' },
+          totalCompromissos: 1,
+          compromissos: [{
+            id: Date.now() + Math.random(),
+            titulo: appointmentForm.title,
+            descricao: appointmentForm.description || '',
+            responsavel: appointmentForm.responsible || '',
+            dataInicio: startDate,
+            dataFim: endDate,
+            horaInicio: `${String(startHour).padStart(2, '0')}:00`,
+            horaFim: `${String(endHour).padStart(2, '0')}:00`,
+            ehCompromisoAberto: false,
+            consultorEmail: user?.email,
+            reservas,
+          }],
+        }
+      })
+
+      const agendamentos = []
+      const localItems = []
+
+      // Range ANTES dos dias editados (horários originais)
+      if (aptStart < editStart) {
+        const beforeEnd = addDays(editStart, -1)
+        const beforeReservas = editingReservas.filter(r => r.data >= aptStart && r.data <= beforeEnd)
+        agendamentos.push(_entry(aptStart, beforeEnd, origStartHour, origEndHour, beforeReservas))
+        localItems.push({ startDate: aptStart, endDate: beforeEnd, startHour: origStartHour, endHour: origEndHour, reservas: beforeReservas })
+      }
+
+      // Dias editados individualmente (novos horários)
+      for (const dia of editDaysPerDia) {
+        const diaReservas = editingReservas.filter(r => r.data === dia.date)
+        agendamentos.push(_entry(dia.date, dia.date, dia.startHour, dia.endHour, diaReservas))
+        localItems.push({ startDate: dia.date, endDate: dia.date, startHour: dia.startHour, endHour: dia.endHour, reservas: diaReservas })
+      }
+
+      // Range APÓS os dias editados (horários originais)
+      if (editEnd < aptEnd) {
+        const afterStart = addDays(editEnd, 1)
+        const afterReservas = editingReservas.filter(r => r.data >= afterStart && r.data <= aptEnd)
+        agendamentos.push(_entry(afterStart, aptEnd, origStartHour, origEndHour, afterReservas))
+        localItems.push({ startDate: afterStart, endDate: aptEnd, startHour: origStartHour, endHour: origEndHour, reservas: afterReservas })
+      }
+
       try {
         await api.delete(`/agenda/agendamento/${editingAppointment.agendaId}`)
-
-        const lotePayload = {
-          agendamentos: editDaysPerDia.map(dia => ({
-            agenda_json: {
-              timestamp: new Date().toISOString(),
-              consultor: { email: user?.email, id: user?.id, nome: user?.first_name || 'N/A' },
-              totalCompromissos: 1,
-              compromissos: [{
-                id: Date.now() + Math.random(),
-                titulo: appointmentForm.title,
-                descricao: appointmentForm.description || '',
-                responsavel: appointmentForm.responsible || '',
-                dataInicio: dia.date,
-                dataFim: dia.date,
-                horaInicio: `${String(dia.startHour).padStart(2, '0')}:00`,
-                horaFim: `${String(dia.endHour).padStart(2, '0')}:00`,
-                ehCompromisoAberto: false,
-                consultorEmail: user?.email,
-                reservas: editingReservas.filter(r => r.data === dia.date),
-              }],
-            }
-          }))
-        }
-        const responses = await api.post('/agenda/agendamento/lote', lotePayload)
+        const responses = await api.post('/agenda/agendamento/lote', { agendamentos })
         const responseList = responses.data || []
-        const created = editDaysPerDia.map((dia, idx) => ({
+
+        const created = localItems.map((item, idx) => ({
           id: responseList[idx]?.id || Date.now() + idx,
           agendaId: responseList[idx]?.id,
-          startDate: dia.date,
-          endDate: dia.date,
-          startHour: dia.startHour,
-          endHour: dia.endHour,
+          startDate: item.startDate,
+          endDate: item.endDate,
+          startHour: item.startHour,
+          endHour: item.endHour,
           isOpenAppointment: false,
           consultorEmail: user?.email,
-          reservas: editingReservas.filter(r => r.data === dia.date),
-          ...appointmentForm,
+          reservas: item.reservas,
+          title: appointmentForm.title,
+          description: appointmentForm.description || '',
+          responsible: appointmentForm.responsible || '',
         }))
+
         setAppointments(prev => [
           ...prev.filter(a => a.agendaId !== editingAppointment.agendaId),
           ...created,
@@ -1907,7 +1950,7 @@ function Dashboard() {
         setHasChanges(true)
         _resetForm()
         setMessageModalType('success')
-        setMessageModalContent(`✅ Range dividido em ${created.length} dia(s) com sucesso!\n\n${appointmentForm.title}`)
+        setMessageModalContent(`✅ Dias editados com sucesso!\n\n${editDaysPerDia.length} dia(s) alterado(s) em "${appointmentForm.title}"`)
         setShowMessageModal(true)
       } catch (error) {
         const statusCode = error.status || 'Erro desconhecido'
@@ -2023,12 +2066,28 @@ function Dashboard() {
   }
 
   const handleEditAppointment = (apt) => {
+    // Captura seleção do calendário ANTES de sobrescrever com o range do agendamento
+    const calStart = selectedDateRangeStart || selectedDate
+    const calEnd = selectedDateRangeEnd || calStart
+
     setEditingAppointment(apt)
     setEditingReservas(apt.reservas || [])
     setEditDayMode(false)
+
     if (apt.startDate !== apt.endDate && !apt.isOpenAppointment) {
-      const days = getDaysInRange(apt.startDate, apt.endDate)
-      setEditDaysPerDia(days.map(date => ({
+      // Interseção: dias selecionados no calendário dentro do range do agendamento
+      let editStart = apt.startDate
+      let editEnd = apt.endDate
+
+      if (calStart && calStart >= apt.startDate && calStart <= apt.endDate) {
+        editStart = calStart
+        // Se há range de calendário, usa; senão fica só no dia selecionado
+        editEnd = (calEnd && calEnd >= editStart && calEnd <= apt.endDate)
+          ? calEnd
+          : editStart
+      }
+
+      setEditDaysPerDia(getDaysInRange(editStart, editEnd).map(date => ({
         date,
         startHour: apt.startHour,
         endHour: apt.endHour,
@@ -2036,6 +2095,7 @@ function Dashboard() {
     } else {
       setEditDaysPerDia([])
     }
+
     setAppointmentForm({
       title: apt.title,
       description: apt.description || '',
@@ -2739,6 +2799,13 @@ function Dashboard() {
                                   onChange={() => setEditDayMode(true)}
                                 />
                                 Editar horário por dia
+                                {editDaysPerDia.length > 0 && (
+                                  <span className="edit-day-hint">
+                                    {editDaysPerDia.length === 1
+                                      ? ` — ${editDaysPerDia[0].date}`
+                                      : ` — ${editDaysPerDia[0].date} até ${editDaysPerDia[editDaysPerDia.length - 1].date}`}
+                                  </span>
+                                )}
                               </label>
                             </div>
                           </div>

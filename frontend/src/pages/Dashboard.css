@@ -2089,6 +2089,13 @@ select.form-input option:checked {
   color: var(--primary);
 }
 
+.edit-day-hint {
+  font-size: 12px;
+  font-weight: 400;
+  color: #6b7280;
+  margin-left: 4px;
+}
+
 .horarios-per-dia-list {
   display: flex;
   flex-direction: column;
