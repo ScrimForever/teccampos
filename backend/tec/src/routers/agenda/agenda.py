@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from infra.database import get_async_session, User
 from domain.security.users import current_active_user
-from domain.schemas.agenda_schema import AgendaInput, AgendaParticipacaoInput, AgendaOutput
+from domain.schemas.agenda_schema import AgendaInput, AgendaLoteInput, AgendaParticipacaoInput, AgendaOutput
 from repository.agenda.agenda_repository import AgendaRepository
 
 agenda_router = APIRouter(prefix="/agenda", tags=["agenda"])
@@ -16,6 +16,17 @@ async def get_agenda(
     user: User = Depends(current_active_user)
 ):
     return await AgendaRepository.get_all(db)
+
+
+@agenda_router.post("/agendamento/lote", response_model=list[AgendaOutput])
+async def create_agendamento_lote(
+    lote: AgendaLoteInput,
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+    user: User = Depends(current_active_user)
+):
+    if not user.is_consultant:
+        raise HTTPException(status_code=403, detail="Apenas consultores podem criar agendamentos")
+    return await AgendaRepository.create_lote(lote, user.email, db)
 
 
 @agenda_router.post("/agendamento", response_model=AgendaOutput)

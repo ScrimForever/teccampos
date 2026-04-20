@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from loguru import logger
 
 from domain.models.agenda_model import Agenda
-from domain.schemas.agenda_schema import AgendaInput, AgendaParticipacaoInput, AgendaOutput
+from domain.schemas.agenda_schema import AgendaInput, AgendaLoteInput, AgendaParticipacaoInput, AgendaOutput
 
 
 def _parse_date(value: str) -> datetime.date:
@@ -106,6 +106,62 @@ class AgendaRepository:
         await db_session.refresh(agenda)
         logger.success(f"Created agenda with id: {agenda.id}")
         return AgendaOutput.model_validate(agenda)
+
+    @staticmethod
+    async def create_lote(
+        lote: AgendaLoteInput,
+        consultor_email: str,
+        db_session: AsyncSession,
+    ) -> list[AgendaOutput]:
+        logger.info(f"Creating lote of {len(lote.agendamentos)} agendas for consultor: {consultor_email}")
+
+        existing = await AgendaRepository._get_existing_compromissos(consultor_email, db_session)
+
+        # Coleta todos os novos compromissos do lote para validação cruzada
+        all_new: list[dict] = []
+        for agenda_input in lote.agendamentos:
+            all_new.extend(agenda_input.agenda_json.get("compromissos", []))
+
+        # Verifica conflitos de cada novo compromisso contra os existentes no banco
+        for new_c in all_new:
+            for ex_c in existing:
+                if _has_conflict(new_c, ex_c):
+                    msg = (
+                        f"Conflito de horário: já existe um agendamento para o período "
+                        f"{ex_c.get('dataInicio')} a {ex_c.get('dataFim')} "
+                        f"das {ex_c.get('horaInicio')} às {ex_c.get('horaFim')}."
+                    )
+                    logger.warning(msg)
+                    raise HTTPException(status_code=409, detail=msg)
+
+        # Verifica conflitos dentro do próprio lote
+        for i, c1 in enumerate(all_new):
+            for c2 in all_new[i + 1:]:
+                if _has_conflict(c1, c2):
+                    msg = (
+                        f"Conflito de horário dentro do lote: "
+                        f"{c1.get('dataInicio')} {c1.get('horaInicio')}–{c1.get('horaFim')} "
+                        f"conflita com {c2.get('dataInicio')} {c2.get('horaInicio')}–{c2.get('horaFim')}."
+                    )
+                    logger.warning(msg)
+                    raise HTTPException(status_code=409, detail=msg)
+
+        # Cria todos na mesma transação
+        records = []
+        for agenda_input in lote.agendamentos:
+            agenda = Agenda(
+                agenda_json=agenda_input.model_dump(),
+                consultor_email=consultor_email,
+            )
+            db_session.add(agenda)
+            records.append(agenda)
+
+        await db_session.commit()
+        for record in records:
+            await db_session.refresh(record)
+
+        logger.success(f"Created lote of {len(records)} agendas for {consultor_email}")
+        return [AgendaOutput.model_validate(r) for r in records]
 
     @staticmethod
     async def update_agenda(

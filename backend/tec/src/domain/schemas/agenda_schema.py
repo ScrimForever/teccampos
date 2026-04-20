@@ -6,6 +6,10 @@ class AgendaInput(BaseModel):
     agenda_json: dict
 
 
+class AgendaLoteInput(BaseModel):
+    agendamentos: list[AgendaInput]
+
+
 class AgendaParticipacaoInput(BaseModel):
     compromisso_id: int
     hora_inicio: str   # "09:00"

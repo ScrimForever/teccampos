@@ -247,6 +247,8 @@ function Dashboard() {
   const [reservacaoForm, setReservacaoForm] = useState({ data: '', horaInicio: '09', duracao: 1 })
   const [editingAppointment, setEditingAppointment] = useState(null)
   const [editingReservas, setEditingReservas] = useState([])
+  const [horarioMode, setHorarioMode] = useState('same') // 'same' | 'different'
+  const [horariosPerDia, setHorariosPerDia] = useState([])
   const [stats, setStats] = useState({
     totalUsers: 1250,
     pendingReviews: 23,
@@ -1709,6 +1711,31 @@ function Dashboard() {
     return false
   }
 
+  const getDaysInRange = (startDate, endDate) => {
+    const days = []
+    let current = new Date(startDate + 'T00:00:00')
+    const end = new Date(endDate + 'T00:00:00')
+    while (current <= end) {
+      days.push(current.toISOString().slice(0, 10))
+      current.setDate(current.getDate() + 1)
+    }
+    return days
+  }
+
+  const handleHorarioModeChange = (mode) => {
+    setHorarioMode(mode)
+    if (mode === 'different') {
+      const start = selectedDateRangeStart || selectedDate
+      const end = selectedDateRangeEnd || selectedDate
+      const days = getDaysInRange(start, end)
+      setHorariosPerDia(days.map(date => ({
+        date,
+        startHour: appointmentForm.startHour,
+        endHour: appointmentForm.endHour,
+      })))
+    }
+  }
+
   const handleScheduleAppointment = async () => {
     if (!appointmentForm.title) {
       setMessageModalType('error')
@@ -1724,44 +1751,111 @@ function Dashboard() {
       return
     }
 
-    const startHour = parseInt(appointmentForm.startHour)
-    const endHour = parseInt(appointmentForm.endHour)
+    const isMultiDay = !editingAppointment && selectedDateRangeStart && selectedDateRangeEnd && selectedDateRangeStart !== selectedDateRangeEnd
+    const useDifferentHours = isMultiDay && horarioMode === 'different' && !appointmentForm.isOpenAppointment
 
-    // Validar horários apenas se não for compromisso aberto
-    if (!appointmentForm.isOpenAppointment && startHour >= endHour) {
-      const errorMessage = `Horário Inválido!\n\nHora inicial: ${String(startHour).padStart(2, '0')}:00\nHora final: ${String(endHour).padStart(2, '0')}:00\n\nA hora de término deve ser maior que a hora de início.\nNão é possível realizar a marcação com estes horários.`
-      setMessageModalType('error')
-      setMessageModalContent(errorMessage)
-      setShowMessageModal(true)
-      console.error('❌ Erro ao agendar compromisso:', {
-        startHour: `${String(startHour).padStart(2, '0')}:00`,
-        endHour: `${String(endHour).padStart(2, '0')}:00`,
-        message: 'Hora inicial é maior ou igual à hora final'
-      })
+    // Validar horários no modo "diferente por dia"
+    if (useDifferentHours) {
+      for (const dia of horariosPerDia) {
+        if (parseInt(dia.startHour) >= parseInt(dia.endHour)) {
+          setMessageModalType('error')
+          setMessageModalContent(`Horário inválido em ${dia.date}: início (${dia.startHour}:00) deve ser menor que término (${dia.endHour}:00).`)
+          setShowMessageModal(true)
+          return
+        }
+      }
+    } else {
+      const startHour = parseInt(appointmentForm.startHour)
+      const endHour = parseInt(appointmentForm.endHour)
+      if (!appointmentForm.isOpenAppointment && startHour >= endHour) {
+        setMessageModalType('error')
+        setMessageModalContent(`Horário Inválido!\n\nHora inicial: ${String(startHour).padStart(2, '0')}:00\nHora final: ${String(endHour).padStart(2, '0')}:00\n\nA hora de término deve ser maior que a hora de início.`)
+        setShowMessageModal(true)
+        return
+      }
+    }
+
+    const _resetForm = () => {
+      setShowAppointmentModal(false)
+      setAppointmentForm({ title: '', description: '', responsible: '', startHour: '09', endHour: '10', isOpenAppointment: false })
+      setSelectedDate(null)
+      setSelectedDateRangeStart(null)
+      setSelectedDateRangeEnd(null)
+      setEditingAppointment(null)
+      setEditingReservas([])
+      setHorarioMode('same')
+      setHorariosPerDia([])
+    }
+
+    const _buildPayload = (startDate, endDate, startHour, endHour) => {
+      const compromisso = {
+        id: Date.now() + Math.random(),
+        titulo: appointmentForm.title,
+        descricao: appointmentForm.description || '',
+        responsavel: appointmentForm.responsible || '',
+        dataInicio: startDate,
+        dataFim: endDate,
+        horaInicio: `${String(startHour).padStart(2, '0')}:00`,
+        horaFim: `${String(endHour).padStart(2, '0')}:00`,
+        ehCompromisoAberto: appointmentForm.isOpenAppointment,
+        consultorEmail: user?.email,
+      }
+      return {
+        agenda_json: {
+          timestamp: new Date().toISOString(),
+          consultor: { email: user?.email, id: user?.id, nome: user?.first_name || 'N/A' },
+          totalCompromissos: 1,
+          compromissos: [compromisso],
+        }
+      }
+    }
+
+    // Modo horário diferente por dia: envia lote em uma única request
+    if (useDifferentHours) {
+      try {
+        const lotePayload = {
+          agendamentos: horariosPerDia.map(dia => _buildPayload(dia.date, dia.date, dia.startHour, dia.endHour))
+        }
+        const responses = await api.post('/agenda/agendamento/lote', lotePayload)
+        const responseList = responses.data || []
+        const created = horariosPerDia.map((dia, idx) => ({
+          id: responseList[idx]?.id || Date.now() + idx,
+          agendaId: responseList[idx]?.id,
+          startDate: dia.date,
+          endDate: dia.date,
+          startHour: dia.startHour,
+          endHour: dia.endHour,
+          isOpenAppointment: false,
+          consultorEmail: user?.email,
+          reservas: [],
+          ...appointmentForm,
+        }))
+        setAppointments(prev => [...prev, ...created])
+        setHasChanges(true)
+        _resetForm()
+        setMessageModalType('success')
+        setMessageModalContent(`✅ ${created.length} agendamentos criados com sucesso!\n\n${appointmentForm.title}`)
+        setShowMessageModal(true)
+      } catch (error) {
+        const statusCode = error.status || 'Erro desconhecido'
+        const responseContent = error.responseData ? JSON.stringify(error.responseData, null, 2) : error.message
+        setMessageModalType('error')
+        setMessageModalContent(`STATUS: ${statusCode}\n\nRESPOSTA DO SERVIDOR:\n\n${responseContent}`)
+        setShowMessageModal(true)
+      }
       return
     }
 
-    // Definir datas para o range (se for consultor com range selecionado)
+    // Modo padrão (mesmo horário / edição)
     const appointmentStartDate = selectedDateRangeStart || selectedDate
     const appointmentEndDate = selectedDateRangeEnd || selectedDate
-
-    // Verificar conflito de horários
     const appointmentStartHour = appointmentForm.isOpenAppointment ? '00' : appointmentForm.startHour
     const appointmentEndHour = appointmentForm.isOpenAppointment ? '23' : appointmentForm.endHour
 
     if (checkTimeConflict(appointmentStartDate, appointmentEndDate, appointmentStartHour, appointmentEndHour, appointmentForm.isOpenAppointment, editingAppointment?.id ?? null)) {
-      const errorMessage = `Conflito de Horário!\n\nJá existe um compromisso seu agendado para este período.\n\nPeriodo: ${appointmentStartDate}${appointmentEndDate !== appointmentStartDate ? ` até ${appointmentEndDate}` : ''}\nHorário: ${String(appointmentStartHour).padStart(2, '0')}:00 às ${String(appointmentEndHour).padStart(2, '0')}:00\n\nNão é possível agendar dois compromissos seu no mesmo horário.`
       setMessageModalType('error')
-      setMessageModalContent(errorMessage)
+      setMessageModalContent(`Conflito de Horário!\n\nJá existe um compromisso seu agendado para este período.\n\nPeriodo: ${appointmentStartDate}${appointmentEndDate !== appointmentStartDate ? ` até ${appointmentEndDate}` : ''}\nHorário: ${String(appointmentStartHour).padStart(2, '0')}:00 às ${String(appointmentEndHour).padStart(2, '0')}:00`)
       setShowMessageModal(true)
-      console.error('❌ Conflito de horário ao agendar compromisso:', {
-        consultorEmail: user?.email,
-        startDate: appointmentStartDate,
-        endDate: appointmentEndDate,
-        startHour: `${String(appointmentStartHour).padStart(2, '0')}:00`,
-        endHour: `${String(appointmentEndHour).padStart(2, '0')}:00`,
-        message: 'Ja existe compromisso neste período para este consultor'
-      })
       return
     }
 
@@ -1769,84 +1863,57 @@ function Dashboard() {
       id: editingAppointment ? editingAppointment.id : Date.now(),
       startDate: appointmentStartDate,
       endDate: appointmentEndDate,
-      startHour: appointmentForm.isOpenAppointment ? '00' : appointmentForm.startHour,
-      endHour: appointmentForm.isOpenAppointment ? '23' : appointmentForm.endHour,
+      startHour: appointmentStartHour,
+      endHour: appointmentEndHour,
       isOpenAppointment: appointmentForm.isOpenAppointment,
       consultorEmail: user?.email,
       consultorId: user?.id,
       reservas: editingAppointment ? editingReservas : [],
       agendaId: editingAppointment ? editingAppointment.agendaId : undefined,
-      ...appointmentForm
+      ...appointmentForm,
     }
 
-    console.log('📅 Novo Compromisso Agendado por:', user?.email)
-    console.log('📋 Detalhes:', JSON.stringify(newAppointment, null, 2))
-
-    // Criar objeto de compromisso formatado (apenas o novo)
-    const novoCompromisso = {
-      id: newAppointment.id,
-      titulo: newAppointment.title,
-      descricao: newAppointment.description || '',
-      responsavel: newAppointment.responsible || '',
-      dataInicio: newAppointment.startDate,
-      dataFim: newAppointment.endDate,
-      horaInicio: `${String(newAppointment.startHour).padStart(2, '0')}:00`,
-      horaFim: `${String(newAppointment.endHour).padStart(2, '0')}:00`,
-      ehCompromisoAberto: newAppointment.isOpenAppointment,
-      consultorEmail: newAppointment.consultorEmail
-    }
-
-    // Criar objeto com apenas o novo compromisso
-    const agendaData = {
-      timestamp: new Date().toISOString(),
-      consultor: isConsultor ? {
-        email: user?.email,
-        id: user?.id,
-        nome: user?.first_name || 'N/A'
-      } : null,
-      totalCompromissos: 1,
-      compromissos: [novoCompromisso]
-    }
-
-    // Criar payload com chave agenda_json contendo apenas o novo compromisso
-    const agendaPayload = {
-      agenda_json: agendaData
-    }
+    const agendaPayload = editingAppointment
+      ? {
+          agenda_json: {
+            timestamp: new Date().toISOString(),
+            consultor: { email: user?.email, id: user?.id, nome: user?.first_name || 'N/A' },
+            totalCompromissos: 1,
+            compromissos: [{
+              id: newAppointment.id,
+              titulo: newAppointment.title,
+              descricao: newAppointment.description || '',
+              responsavel: newAppointment.responsible || '',
+              dataInicio: newAppointment.startDate,
+              dataFim: newAppointment.endDate,
+              horaInicio: `${String(newAppointment.startHour).padStart(2, '0')}:00`,
+              horaFim: `${String(newAppointment.endHour).padStart(2, '0')}:00`,
+              ehCompromisoAberto: newAppointment.isOpenAppointment,
+              consultorEmail: newAppointment.consultorEmail,
+            }],
+          }
+        }
+      : _buildPayload(appointmentStartDate, appointmentEndDate, appointmentStartHour, appointmentEndHour)
 
     try {
       let response
       if (editingAppointment?.agendaId) {
-        console.log('📤 Atualizando agenda', editingAppointment.agendaId, JSON.stringify(agendaPayload, null, 2))
         response = await api.put(`/agenda/agendamento/${editingAppointment.agendaId}`, agendaPayload)
       } else {
-        console.log('📤 Criando novo agendamento:', JSON.stringify(agendaPayload, null, 2))
         response = await api.post('/agenda/agendamento', agendaPayload)
       }
 
-      console.log('✅ Resposta do servidor:', response)
-      console.log('📊 Status:', response.status)
+      // Usa o ID retornado pelo servidor para garantir agendaId correto no estado local
+      const savedAgendaId = response.data?.id ?? newAppointment.agendaId
+      const finalAppointment = { ...newAppointment, agendaId: savedAgendaId }
 
       if (editingAppointment) {
-        setAppointments(prev => prev.map(a => a.id === newAppointment.id ? newAppointment : a))
+        setAppointments(prev => prev.map(a => a.id === finalAppointment.id ? finalAppointment : a))
       } else {
-        setAppointments(prev => [...prev, newAppointment])
+        setAppointments(prev => [...prev, finalAppointment])
       }
       setHasChanges(true)
-      setEditingAppointment(null)
-      setEditingReservas([])
-
-      setShowAppointmentModal(false)
-      setAppointmentForm({
-        title: '',
-        description: '',
-        responsible: '',
-        startHour: '09',
-        endHour: '10',
-        isOpenAppointment: false
-      })
-      setSelectedDate(null)
-      setSelectedDateRangeStart(null)
-      setSelectedDateRangeEnd(null)
+      _resetForm()
 
       const verb = editingAppointment ? 'atualizado' : 'criado'
       setMessageModalType('success')
@@ -1854,29 +1921,12 @@ function Dashboard() {
       setShowMessageModal(true)
     } catch (error) {
       console.error('❌ Erro ao enviar agendamento:', error)
-
-      let statusCode = error.status || 'Erro desconhecido'
-      let responseContent = ''
-
-      // Extrair informações detalhadas da resposta do servidor
-      if (error.responseData) {
-        console.error('📋 Resposta completa da API:', error.responseData)
-
-        // Formatar a resposta completa em JSON
-        if (typeof error.responseData === 'string') {
-          responseContent = error.responseData
-        } else {
-          responseContent = JSON.stringify(error.responseData, null, 2)
-        }
-      } else {
-        responseContent = error.message
-      }
-
-      // Exibir no modal com a resposta completa
-      const modalContent = `STATUS: ${statusCode}\n\nRESPOSTA DO SERVIDOR:\n\n${responseContent}`
-
+      const statusCode = error.status || 'Erro desconhecido'
+      const responseContent = error.responseData
+        ? (typeof error.responseData === 'string' ? error.responseData : JSON.stringify(error.responseData, null, 2))
+        : error.message
       setMessageModalType('error')
-      setMessageModalContent(modalContent)
+      setMessageModalContent(`STATUS: ${statusCode}\n\nRESPOSTA DO SERVIDOR:\n\n${responseContent}`)
       setShowMessageModal(true)
     }
   }
@@ -1885,12 +1935,15 @@ function Dashboard() {
     setShowAppointmentModal(false)
     setEditingAppointment(null)
     setEditingReservas([])
+    setHorarioMode('same')
+    setHorariosPerDia([])
     setAppointmentForm({
       title: '',
       description: '',
       responsible: '',
       startHour: '09',
-      endHour: '10'
+      endHour: '10',
+      isOpenAppointment: false,
     })
   }
 
@@ -2577,7 +2630,39 @@ function Dashboard() {
                           </div>
                         )}
 
-                        {!appointmentForm.isOpenAppointment && (
+                        {/* Toggle de modo de horário: só aparece em range multi-dia na criação */}
+                        {!editingAppointment && !appointmentForm.isOpenAppointment &&
+                          selectedDateRangeStart && selectedDateRangeEnd &&
+                          selectedDateRangeStart !== selectedDateRangeEnd && (
+                          <div className="form-group">
+                            <label>Modo de horário</label>
+                            <div className="horario-mode-toggle">
+                              <label className={`horario-mode-option ${horarioMode === 'same' ? 'active' : ''}`}>
+                                <input
+                                  type="radio"
+                                  name="horarioMode"
+                                  value="same"
+                                  checked={horarioMode === 'same'}
+                                  onChange={() => setHorarioMode('same')}
+                                />
+                                Mesmo horário para todos os dias
+                              </label>
+                              <label className={`horario-mode-option ${horarioMode === 'different' ? 'active' : ''}`}>
+                                <input
+                                  type="radio"
+                                  name="horarioMode"
+                                  value="different"
+                                  checked={horarioMode === 'different'}
+                                  onChange={() => handleHorarioModeChange('different')}
+                                />
+                                Horário diferente por dia
+                              </label>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Horário único (padrão) */}
+                        {!appointmentForm.isOpenAppointment && horarioMode === 'same' && (
                           <div className="form-group">
                             <label>Horário</label>
                             <div className="time-range-container">
@@ -2624,6 +2709,53 @@ function Dashboard() {
                             </div>
                           </div>
                         </div>
+                        )}
+
+                        {/* Horários diferentes por dia */}
+                        {!appointmentForm.isOpenAppointment && horarioMode === 'different' && horariosPerDia.length > 0 && (
+                          <div className="form-group">
+                            <label>Horários por dia</label>
+                            <div className="horarios-per-dia-list">
+                              {horariosPerDia.map((dia, idx) => (
+                                <div key={dia.date} className="horario-dia-row">
+                                  <span className="horario-dia-label">{dia.date}</span>
+                                  <div className="time-range-container">
+                                    <div className="time-input-group">
+                                      <label>Início</label>
+                                      <select
+                                        className="hour-select"
+                                        value={dia.startHour}
+                                        onChange={(e) => setHorariosPerDia(prev =>
+                                          prev.map((d, i) => i === idx ? { ...d, startHour: e.target.value } : d)
+                                        )}
+                                      >
+                                        {Array.from({ length: 24 }, (_, i) => {
+                                          const hour = String(i).padStart(2, '0')
+                                          return <option key={hour} value={hour}>{hour}:00</option>
+                                        })}
+                                      </select>
+                                    </div>
+                                    <span className="time-separator">até</span>
+                                    <div className="time-input-group">
+                                      <label>Término</label>
+                                      <select
+                                        className="hour-select"
+                                        value={dia.endHour}
+                                        onChange={(e) => setHorariosPerDia(prev =>
+                                          prev.map((d, i) => i === idx ? { ...d, endHour: e.target.value } : d)
+                                        )}
+                                      >
+                                        {Array.from({ length: 24 }, (_, i) => {
+                                          const hour = String(i).padStart(2, '0')
+                                          return <option key={hour} value={hour}>{hour}:00</option>
+                                        })}
+                                      </select>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
                         )}
 
                         <div className="form-group">
