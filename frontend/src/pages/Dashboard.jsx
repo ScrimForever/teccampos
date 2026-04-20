@@ -246,6 +246,7 @@ function Dashboard() {
   const [hasChanges, setHasChanges] = useState(false)  // Rastreia se há modificações na agenda
   const [reservacaoForm, setReservacaoForm] = useState({ data: '', horaInicio: '09', duracao: 1 })
   const [editingAppointment, setEditingAppointment] = useState(null)
+  const [editingReservas, setEditingReservas] = useState([])
   const [stats, setStats] = useState({
     totalUsers: 1250,
     pendingReviews: 23,
@@ -1773,7 +1774,7 @@ function Dashboard() {
       isOpenAppointment: appointmentForm.isOpenAppointment,
       consultorEmail: user?.email,
       consultorId: user?.id,
-      reservas: editingAppointment ? (editingAppointment.reservas || []) : [],
+      reservas: editingAppointment ? editingReservas : [],
       agendaId: editingAppointment ? editingAppointment.agendaId : undefined,
       ...appointmentForm
     }
@@ -1812,11 +1813,16 @@ function Dashboard() {
       agenda_json: agendaData
     }
 
-    // Fazer POST request
+    // Fazer POST ou PUT dependendo se é edição ou criação
     try {
-      console.log('📤 Enviando novo agendamento para /agenda/agendamento:', JSON.stringify(agendaPayload, null, 2))
-
-      const response = await api.post('/agenda/agendamento', agendaPayload)
+      let response
+      if (editingAppointment?.agendaId) {
+        console.log('📤 Atualizando agendamento em /agenda/agendamento/', editingAppointment.agendaId, JSON.stringify(agendaPayload, null, 2))
+        response = await api.put(`/agenda/agendamento/${editingAppointment.agendaId}`, agendaPayload)
+      } else {
+        console.log('📤 Enviando novo agendamento para /agenda/agendamento:', JSON.stringify(agendaPayload, null, 2))
+        response = await api.post('/agenda/agendamento', agendaPayload)
+      }
 
       console.log('✅ Resposta do servidor:', response)
       console.log('📊 Status:', response.status)
@@ -1828,6 +1834,7 @@ function Dashboard() {
       }
       setHasChanges(true)
       setEditingAppointment(null)
+      setEditingReservas([])
 
       setShowAppointmentModal(false)
       setAppointmentForm({
@@ -1878,6 +1885,7 @@ function Dashboard() {
   const handleCancelAppointment = () => {
     setShowAppointmentModal(false)
     setEditingAppointment(null)
+    setEditingReservas([])
     setAppointmentForm({
       title: '',
       description: '',
@@ -1889,6 +1897,7 @@ function Dashboard() {
 
   const handleEditAppointment = (apt) => {
     setEditingAppointment(apt)
+    setEditingReservas(apt.reservas || [])
     setAppointmentForm({
       title: apt.title,
       description: apt.description || '',
@@ -2663,6 +2672,30 @@ function Dashboard() {
                           />
                         </div>
                       </div>
+
+                      {editingAppointment && editingReservas.length > 0 && (
+                        <div className="edit-reservas-warning">
+                          <p className="edit-reservas-warning-title">
+                            ⚠️ Esta agenda possui {editingReservas.length} reserva(s) de incubados. Remova os horários que entram em conflito com a sua edição.
+                          </p>
+                          <ul className="edit-reservas-list">
+                            {editingReservas.map((r, idx) => (
+                              <li key={idx} className="edit-reservas-item">
+                                <span>
+                                  <strong>{r.empresa || r.incubado}</strong> — {r.data} {r.horaInicio}–{r.horaFim}
+                                </span>
+                                <button
+                                  type="button"
+                                  className="btn-remove-reserva"
+                                  onClick={() => setEditingReservas(prev => prev.filter((_, i) => i !== idx))}
+                                >
+                                  Remover
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
 
                       <div className="modal-footer">
                         <button

@@ -2058,6 +2058,59 @@ select.form-input option:checked {
   flex-shrink: 0;
 }
 
+.edit-reservas-warning {
+  margin: 0 20px 16px;
+  padding: 14px 16px;
+  background: #fff8e1;
+  border: 1px solid #f59e0b;
+  border-radius: 8px;
+}
+
+.edit-reservas-warning-title {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #92400e;
+}
+
+.edit-reservas-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.edit-reservas-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: white;
+  border: 1px solid #fcd34d;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 13px;
+  color: #374151;
+}
+
+.btn-remove-reserva {
+  background: #ef4444;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+  margin-left: 10px;
+}
+
+.btn-remove-reserva:hover {
+  background: #dc2626;
+}
+
 .btn {
   padding: 12px 24px;
   border: none;
