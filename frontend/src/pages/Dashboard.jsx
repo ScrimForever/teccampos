@@ -2072,7 +2072,6 @@ function Dashboard() {
 
     setEditingAppointment(apt)
     setEditingReservas(apt.reservas || [])
-    setEditDayMode(false)
 
     if (apt.startDate !== apt.endDate && !apt.isOpenAppointment) {
       // Interseção: dias selecionados no calendário dentro do range do agendamento
@@ -2081,19 +2080,25 @@ function Dashboard() {
 
       if (calStart && calStart >= apt.startDate && calStart <= apt.endDate) {
         editStart = calStart
-        // Se há range de calendário, usa; senão fica só no dia selecionado
         editEnd = (calEnd && calEnd >= editStart && calEnd <= apt.endDate)
           ? calEnd
           : editStart
       }
 
-      setEditDaysPerDia(getDaysInRange(editStart, editEnd).map(date => ({
+      const editDays = getDaysInRange(editStart, editEnd)
+      const fullRangeDays = getDaysInRange(apt.startDate, apt.endDate)
+
+      setEditDaysPerDia(editDays.map(date => ({
         date,
         startHour: apt.startHour,
         endHour: apt.endHour,
       })))
+
+      // Ativa editDayMode automaticamente quando a seleção é subconjunto do range
+      setEditDayMode(editDays.length < fullRangeDays.length)
     } else {
       setEditDaysPerDia([])
+      setEditDayMode(false)
     }
 
     setAppointmentForm({
