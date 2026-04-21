@@ -2068,20 +2068,25 @@ function Dashboard() {
   }
 
   const handleEditAppointment = (apt) => {
+    // Captura o range do calendário ANTES de qualquer sobrescrita
+    const calStart = selectedDateRangeStart
+    const calEnd   = selectedDateRangeEnd
+    const hasCalRange = calStart && calEnd && calStart <= calEnd
+
     setEditingAppointment(apt)
     setEditingReservas(apt.reservas || [])
 
+    let formStart, formEnd
+
     if (apt.startDate !== apt.endDate && !apt.isOpenAppointment) {
+      // Agendamento multi-dia: verifica se o range do calendário é um sub-range interno
       const fullRangeDays = getDaysInRange(apt.startDate, apt.endDate)
+      const isSubRange = hasCalRange &&
+        calStart >= apt.startDate && calEnd <= apt.endDate &&
+        calStart <= calEnd
 
-      // Usa sub-range só quando AMBAS as datas do calendário estão explicitamente selecionadas
-      // e formam um intervalo válido dentro do agendamento
-      const hasRange = selectedDateRangeStart && selectedDateRangeEnd &&
-        selectedDateRangeStart >= apt.startDate && selectedDateRangeEnd <= apt.endDate &&
-        selectedDateRangeStart <= selectedDateRangeEnd
-
-      const editStart = hasRange ? selectedDateRangeStart : apt.startDate
-      const editEnd   = hasRange ? selectedDateRangeEnd   : apt.endDate
+      const editStart = isSubRange ? calStart : apt.startDate
+      const editEnd   = isSubRange ? calEnd   : apt.endDate
       const editDays  = getDaysInRange(editStart, editEnd)
 
       setEditDaysPerDia(editDays.map(date => ({
@@ -2089,10 +2094,18 @@ function Dashboard() {
         startHour: apt.startHour,
         endHour: apt.endHour,
       })))
-      setEditDayMode(hasRange && editDays.length < fullRangeDays.length)
+      setEditDayMode(isSubRange && editDays.length < fullRangeDays.length)
+
+      // Para agendamentos multi-dia, o form usa o range completo do agendamento.
+      // O "Editar range completo" faz PUT no range original; "Editar por dia" usa editDaysPerDia.
+      formStart = apt.startDate
+      formEnd   = apt.endDate
     } else {
+      // Agendamento single-dia: permite expandir para o range selecionado no calendário
       setEditDaysPerDia([])
       setEditDayMode(false)
+      formStart = hasCalRange ? calStart : apt.startDate
+      formEnd   = hasCalRange ? calEnd   : apt.endDate
     }
 
     setAppointmentForm({
@@ -2103,9 +2116,10 @@ function Dashboard() {
       endHour: apt.endHour,
       isOpenAppointment: apt.isOpenAppointment || false,
     })
-    setSelectedDate(apt.startDate)
-    setSelectedDateRangeStart(apt.startDate)
-    setSelectedDateRangeEnd(apt.endDate)
+
+    setSelectedDate(formStart)
+    setSelectedDateRangeStart(formStart)
+    setSelectedDateRangeEnd(formEnd)
     setShowAppointmentModal(true)
   }
 
