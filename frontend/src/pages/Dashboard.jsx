@@ -1859,13 +1859,11 @@ function Dashboard() {
     // Modo edição por dia: DELETE range original + POST lote preservando before/after
     const isEditDayMode = editDayMode && editingAppointment?.agendaId && editDaysPerDia.length > 0 && !appointmentForm.isOpenAppointment
     if (isEditDayMode) {
-      for (const dia of editDaysPerDia) {
-        if (parseInt(dia.startHour) >= parseInt(dia.endHour)) {
-          setMessageModalType('error')
-          setMessageModalContent(`Horário inválido em ${dia.date}: início (${dia.startHour}:00) deve ser menor que término (${dia.endHour}:00).`)
-          setShowMessageModal(true)
-          return
-        }
+      if (parseInt(appointmentForm.startHour) >= parseInt(appointmentForm.endHour)) {
+        setMessageModalType('error')
+        setMessageModalContent(`Horário inválido: início (${appointmentForm.startHour}:00) deve ser menor que término (${appointmentForm.endHour}:00).`)
+        setShowMessageModal(true)
+        return
       }
 
       const aptStart = editingAppointment.startDate
@@ -1914,8 +1912,8 @@ function Dashboard() {
       // Dias editados — usa dados do formulário (title/hora novos)
       for (const dia of editDaysPerDia) {
         const diaReservas = editingReservas.filter(r => r.data === dia.date)
-        agendamentos.push(_entry(dia.date, dia.date, dia.startHour, dia.endHour, appointmentForm.title, appointmentForm.description || '', appointmentForm.responsible || '', diaReservas))
-        localItems.push({ startDate: dia.date, endDate: dia.date, startHour: dia.startHour, endHour: dia.endHour, title: appointmentForm.title, description: appointmentForm.description || '', responsible: appointmentForm.responsible || '', reservas: diaReservas })
+        agendamentos.push(_entry(dia.date, dia.date, appointmentForm.startHour, appointmentForm.endHour, appointmentForm.title, appointmentForm.description || '', appointmentForm.responsible || '', diaReservas))
+        localItems.push({ startDate: dia.date, endDate: dia.date, startHour: appointmentForm.startHour, endHour: appointmentForm.endHour, title: appointmentForm.title, description: appointmentForm.description || '', responsible: appointmentForm.responsible || '', reservas: diaReservas })
       }
 
       // Range APÓS os dias editados — mantém dados originais
@@ -2819,47 +2817,14 @@ function Dashboard() {
                           </div>
                         )}
 
-                        {/* Lista de dias com hora editável (modo edição por dia) */}
+                        {/* Dias selecionados para edição (modo edição por dia) */}
                         {editingAppointment && editDayMode && editDaysPerDia.length > 0 && (
                           <div className="form-group">
-                            <label>Horários por dia</label>
+                            <label>Dias que serão editados</label>
                             <div className="horarios-per-dia-list">
-                              {editDaysPerDia.map((dia, idx) => (
+                              {editDaysPerDia.map((dia) => (
                                 <div key={dia.date} className="horario-dia-row">
                                   <span className="horario-dia-label">{dia.date}</span>
-                                  <div className="time-range-container">
-                                    <div className="time-input-group">
-                                      <label>Início</label>
-                                      <select
-                                        className="hour-select"
-                                        value={dia.startHour}
-                                        onChange={(e) => setEditDaysPerDia(prev =>
-                                          prev.map((d, i) => i === idx ? { ...d, startHour: e.target.value } : d)
-                                        )}
-                                      >
-                                        {Array.from({ length: 24 }, (_, i) => {
-                                          const hour = String(i).padStart(2, '0')
-                                          return <option key={hour} value={hour}>{hour}:00</option>
-                                        })}
-                                      </select>
-                                    </div>
-                                    <span className="time-separator">até</span>
-                                    <div className="time-input-group">
-                                      <label>Término</label>
-                                      <select
-                                        className="hour-select"
-                                        value={dia.endHour}
-                                        onChange={(e) => setEditDaysPerDia(prev =>
-                                          prev.map((d, i) => i === idx ? { ...d, endHour: e.target.value } : d)
-                                        )}
-                                      >
-                                        {Array.from({ length: 24 }, (_, i) => {
-                                          const hour = String(i).padStart(2, '0')
-                                          return <option key={hour} value={hour}>{hour}:00</option>
-                                        })}
-                                      </select>
-                                    </div>
-                                  </div>
                                 </div>
                               ))}
                             </div>
@@ -2899,7 +2864,7 @@ function Dashboard() {
                         )}
 
                         {/* Horário único (padrão) */}
-                        {!appointmentForm.isOpenAppointment && horarioMode === 'same' && !editDayMode && (
+                        {!appointmentForm.isOpenAppointment && (horarioMode === 'same' || editDayMode) && (
                           <div className="form-group">
                             <label>Horário</label>
                             <div className="time-range-container">
