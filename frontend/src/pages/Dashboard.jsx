@@ -1640,57 +1640,31 @@ function Dashboard() {
   const dayNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab']
 
   const handleDateClick = (dateStr) => {
+    if (showAppointmentModal) return
     if (isConsultor) {
       // Para consultores: suporta seleção de range
-      let newStart, newEnd
-
       if (!selectedDateRangeStart) {
-        newStart = dateStr
-        newEnd = null
+        // Primeira data do range
         setSelectedDateRangeStart(dateStr)
         setSelectedDate(dateStr)
       } else if (!selectedDateRangeEnd) {
+        // Segunda data do range
         const start = new Date(selectedDateRangeStart)
         const end = new Date(dateStr)
 
         if (end < start) {
-          newStart = dateStr
-          newEnd = selectedDateRangeStart
+          // Se a segunda data é antes da primeira, inverte
           setSelectedDateRangeStart(dateStr)
           setSelectedDateRangeEnd(selectedDateRangeStart)
         } else {
-          newStart = selectedDateRangeStart
-          newEnd = dateStr
           setSelectedDateRangeEnd(dateStr)
         }
         setSelectedDate(dateStr)
       } else {
-        newStart = dateStr
-        newEnd = null
+        // Reset range
         setSelectedDateRangeStart(dateStr)
         setSelectedDateRangeEnd(null)
         setSelectedDate(dateStr)
-      }
-
-      // Atualiza editDaysPerDia em tempo real quando editando agendamento multi-dia
-      if (editingAppointment && editingAppointment.startDate !== editingAppointment.endDate && !editingAppointment.isOpenAppointment) {
-        const apt = editingAppointment
-        const calStart = newStart
-        const calEnd = newEnd || newStart
-
-        let editStart = apt.startDate
-        let editEnd = apt.endDate
-
-        if (calStart && calStart >= apt.startDate && calStart <= apt.endDate) {
-          editStart = calStart
-          editEnd = (calEnd && calEnd >= editStart && calEnd <= apt.endDate) ? calEnd : editStart
-        }
-
-        const editDays = getDaysInRange(editStart, editEnd)
-        const fullRangeDays = getDaysInRange(apt.startDate, apt.endDate)
-
-        setEditDaysPerDia(editDays.map(date => ({ date, startHour: apt.startHour, endHour: apt.endHour })))
-        setEditDayMode(editDays.length < fullRangeDays.length)
       }
     } else {
       // Para usuários normais: seleção de data única
