@@ -2844,10 +2844,49 @@ function Dashboard() {
                           </div>
                         )}
 
-                        {/* Dias selecionados para edição (modo edição por dia) */}
+                        {/* Sub-range de edição: inputs de data para definir quais dias serão editados */}
                         {editingAppointment && editDayMode && editDaysPerDia.length > 0 && (
                           <div className="form-group">
-                            <label>Dias que serão editados</label>
+                            <label>Sub-range para editar</label>
+                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '8px' }}>
+                              <input
+                                type="date"
+                                className="date-input"
+                                min={editingAppointment.startDate}
+                                max={editDaysPerDia[editDaysPerDia.length - 1].date}
+                                value={editDaysPerDia[0].date}
+                                onChange={(e) => {
+                                  const start = e.target.value
+                                  const end = editDaysPerDia[editDaysPerDia.length - 1].date
+                                  if (start && start <= end && start >= editingAppointment.startDate) {
+                                    setEditDaysPerDia(getDaysInRange(start, end).map(date => ({
+                                      date,
+                                      startHour: editingAppointment.startHour,
+                                      endHour: editingAppointment.endHour,
+                                    })))
+                                  }
+                                }}
+                              />
+                              <span>até</span>
+                              <input
+                                type="date"
+                                className="date-input"
+                                min={editDaysPerDia[0].date}
+                                max={editingAppointment.endDate}
+                                value={editDaysPerDia[editDaysPerDia.length - 1].date}
+                                onChange={(e) => {
+                                  const start = editDaysPerDia[0].date
+                                  const end = e.target.value
+                                  if (end && end >= start && end <= editingAppointment.endDate) {
+                                    setEditDaysPerDia(getDaysInRange(start, end).map(date => ({
+                                      date,
+                                      startHour: editingAppointment.startHour,
+                                      endHour: editingAppointment.endHour,
+                                    })))
+                                  }
+                                }}
+                              />
+                            </div>
                             <div className="horarios-per-dia-list">
                               {editDaysPerDia.map((dia) => (
                                 <div key={dia.date} className="horario-dia-row">
