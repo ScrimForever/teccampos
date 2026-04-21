@@ -1872,20 +1872,23 @@ function Dashboard() {
       const aptEnd = editingAppointment.endDate
       const origStartHour = editingAppointment.startHour
       const origEndHour = editingAppointment.endHour
+      const origTitle = editingAppointment.title
+      const origDescription = editingAppointment.description || ''
+      const origResponsible = editingAppointment.responsible || ''
       const editStart = editDaysPerDia[0].date
       const editEnd = editDaysPerDia[editDaysPerDia.length - 1].date
 
-      // Monta a lista completa de agendamentos a criar após o DELETE
-      const _entry = (startDate, endDate, startHour, endHour, reservas = []) => ({
+      // Monta entrada do lote com título/descrição/responsável explícitos
+      const _entry = (startDate, endDate, startHour, endHour, titulo, descricao, responsavel, reservas = []) => ({
         agenda_json: {
           timestamp: new Date().toISOString(),
           consultor: { email: user?.email, id: user?.id, nome: user?.first_name || 'N/A' },
           totalCompromissos: 1,
           compromissos: [{
             id: Date.now() + Math.random(),
-            titulo: appointmentForm.title,
-            descricao: appointmentForm.description || '',
-            responsavel: appointmentForm.responsible || '',
+            titulo,
+            descricao,
+            responsavel,
             dataInicio: startDate,
             dataFim: endDate,
             horaInicio: `${String(startHour).padStart(2, '0')}:00`,
@@ -1900,27 +1903,27 @@ function Dashboard() {
       const agendamentos = []
       const localItems = []
 
-      // Range ANTES dos dias editados (horários originais)
+      // Range ANTES dos dias editados — mantém dados originais
       if (aptStart < editStart) {
         const beforeEnd = addDays(editStart, -1)
         const beforeReservas = editingReservas.filter(r => r.data >= aptStart && r.data <= beforeEnd)
-        agendamentos.push(_entry(aptStart, beforeEnd, origStartHour, origEndHour, beforeReservas))
-        localItems.push({ startDate: aptStart, endDate: beforeEnd, startHour: origStartHour, endHour: origEndHour, reservas: beforeReservas })
+        agendamentos.push(_entry(aptStart, beforeEnd, origStartHour, origEndHour, origTitle, origDescription, origResponsible, beforeReservas))
+        localItems.push({ startDate: aptStart, endDate: beforeEnd, startHour: origStartHour, endHour: origEndHour, title: origTitle, description: origDescription, responsible: origResponsible, reservas: beforeReservas })
       }
 
-      // Dias editados individualmente (novos horários)
+      // Dias editados — usa dados do formulário (title/hora novos)
       for (const dia of editDaysPerDia) {
         const diaReservas = editingReservas.filter(r => r.data === dia.date)
-        agendamentos.push(_entry(dia.date, dia.date, dia.startHour, dia.endHour, diaReservas))
-        localItems.push({ startDate: dia.date, endDate: dia.date, startHour: dia.startHour, endHour: dia.endHour, reservas: diaReservas })
+        agendamentos.push(_entry(dia.date, dia.date, dia.startHour, dia.endHour, appointmentForm.title, appointmentForm.description || '', appointmentForm.responsible || '', diaReservas))
+        localItems.push({ startDate: dia.date, endDate: dia.date, startHour: dia.startHour, endHour: dia.endHour, title: appointmentForm.title, description: appointmentForm.description || '', responsible: appointmentForm.responsible || '', reservas: diaReservas })
       }
 
-      // Range APÓS os dias editados (horários originais)
+      // Range APÓS os dias editados — mantém dados originais
       if (editEnd < aptEnd) {
         const afterStart = addDays(editEnd, 1)
         const afterReservas = editingReservas.filter(r => r.data >= afterStart && r.data <= aptEnd)
-        agendamentos.push(_entry(afterStart, aptEnd, origStartHour, origEndHour, afterReservas))
-        localItems.push({ startDate: afterStart, endDate: aptEnd, startHour: origStartHour, endHour: origEndHour, reservas: afterReservas })
+        agendamentos.push(_entry(afterStart, aptEnd, origStartHour, origEndHour, origTitle, origDescription, origResponsible, afterReservas))
+        localItems.push({ startDate: afterStart, endDate: aptEnd, startHour: origStartHour, endHour: origEndHour, title: origTitle, description: origDescription, responsible: origResponsible, reservas: afterReservas })
       }
 
       try {
@@ -1938,9 +1941,9 @@ function Dashboard() {
           isOpenAppointment: false,
           consultorEmail: user?.email,
           reservas: item.reservas,
-          title: appointmentForm.title,
-          description: appointmentForm.description || '',
-          responsible: appointmentForm.responsible || '',
+          title: item.title,
+          description: item.description,
+          responsible: item.responsible,
         }))
 
         setAppointments(prev => [
