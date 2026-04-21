@@ -2068,36 +2068,28 @@ function Dashboard() {
   }
 
   const handleEditAppointment = (apt) => {
-    // Captura seleção do calendário ANTES de sobrescrever com o range do agendamento
-    const calStart = selectedDateRangeStart || selectedDate
-    const calEnd = selectedDateRangeEnd || calStart
-
     setEditingAppointment(apt)
     setEditingReservas(apt.reservas || [])
 
     if (apt.startDate !== apt.endDate && !apt.isOpenAppointment) {
-      // Interseção: dias selecionados no calendário dentro do range do agendamento
-      let editStart = apt.startDate
-      let editEnd = apt.endDate
-
-      if (calStart && calStart >= apt.startDate && calStart <= apt.endDate) {
-        editStart = calStart
-        editEnd = (calEnd && calEnd >= editStart && calEnd <= apt.endDate)
-          ? calEnd
-          : editStart
-      }
-
-      const editDays = getDaysInRange(editStart, editEnd)
       const fullRangeDays = getDaysInRange(apt.startDate, apt.endDate)
+
+      // Usa sub-range só quando AMBAS as datas do calendário estão explicitamente selecionadas
+      // e formam um intervalo válido dentro do agendamento
+      const hasRange = selectedDateRangeStart && selectedDateRangeEnd &&
+        selectedDateRangeStart >= apt.startDate && selectedDateRangeEnd <= apt.endDate &&
+        selectedDateRangeStart <= selectedDateRangeEnd
+
+      const editStart = hasRange ? selectedDateRangeStart : apt.startDate
+      const editEnd   = hasRange ? selectedDateRangeEnd   : apt.endDate
+      const editDays  = getDaysInRange(editStart, editEnd)
 
       setEditDaysPerDia(editDays.map(date => ({
         date,
         startHour: apt.startHour,
         endHour: apt.endHour,
       })))
-
-      // Ativa editDayMode automaticamente quando a seleção é subconjunto do range
-      setEditDayMode(editDays.length < fullRangeDays.length)
+      setEditDayMode(hasRange && editDays.length < fullRangeDays.length)
     } else {
       setEditDaysPerDia([])
       setEditDayMode(false)
