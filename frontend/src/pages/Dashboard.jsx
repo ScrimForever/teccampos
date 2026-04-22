@@ -251,6 +251,7 @@ function Dashboard() {
   const [horariosPerDia, setHorariosPerDia] = useState([])
   const [editDayMode, setEditDayMode] = useState(false)
   const [editDaysPerDia, setEditDaysPerDia] = useState([])
+  const [confirmDeleteAptId, setConfirmDeleteAptId] = useState(null)
   const [stats, setStats] = useState({
     totalUsers: 1250,
     pendingReviews: 23,
@@ -2017,6 +2018,26 @@ function Dashboard() {
     }
   }
 
+  const handleDeleteAppointment = async (apt) => {
+    if (!apt.agendaId) return
+    try {
+      await api.delete(`/agenda/agendamento/${apt.agendaId}`)
+      setAppointments(prev => prev.filter(a => a.agendaId !== apt.agendaId))
+      setHasChanges(true)
+      setConfirmDeleteAptId(null)
+      setMessageModalType('success')
+      setMessageModalContent(`✅ Agendamento excluído com sucesso!\n\n"${apt.title}"`)
+      setShowMessageModal(true)
+    } catch (error) {
+      setConfirmDeleteAptId(null)
+      const statusCode = error.status || 'Erro desconhecido'
+      const responseContent = error.responseData ? JSON.stringify(error.responseData, null, 2) : error.message
+      setMessageModalType('error')
+      setMessageModalContent(`STATUS: ${statusCode}\n\nRESPOSTA DO SERVIDOR:\n\n${responseContent}`)
+      setShowMessageModal(true)
+    }
+  }
+
   const handleCancelAppointment = () => {
     setShowAppointmentModal(false)
     setEditingAppointment(null)
@@ -2633,6 +2654,8 @@ function Dashboard() {
                                     .some(a => (a.reservas || []).some(r => r.incubado === user?.email))
                                   const isFull = availableToday <= 0
                                   const canEdit = isConsultor && apt.consultorEmail === user?.email && (apt.reservas || []).length === 0
+                                  const canDelete = isConsultor && apt.consultorEmail === user?.email
+                                  const isPendingDelete = confirmDeleteAptId === apt.id
                                   return (
                                   <div
                                     key={apt.id}
@@ -2641,15 +2664,45 @@ function Dashboard() {
                                   >
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                       <div className="apt-title">{apt.title}</div>
-                                      {canEdit && (
-                                        <button
-                                          className="btn btn-secondary"
-                                          style={{ fontSize: '12px', padding: '2px 10px', marginLeft: '8px', flexShrink: 0 }}
-                                          onClick={(e) => { e.stopPropagation(); handleEditAppointment(apt) }}
-                                        >
-                                          Editar
-                                        </button>
-                                      )}
+                                      <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+                                        {canEdit && !isPendingDelete && (
+                                          <button
+                                            className="btn btn-secondary"
+                                            style={{ fontSize: '12px', padding: '2px 10px' }}
+                                            onClick={(e) => { e.stopPropagation(); handleEditAppointment(apt) }}
+                                          >
+                                            Editar
+                                          </button>
+                                        )}
+                                        {canDelete && !isPendingDelete && (
+                                          <button
+                                            className="btn btn-danger"
+                                            style={{ fontSize: '12px', padding: '2px 10px' }}
+                                            onClick={(e) => { e.stopPropagation(); setConfirmDeleteAptId(apt.id) }}
+                                          >
+                                            Excluir
+                                          </button>
+                                        )}
+                                        {canDelete && isPendingDelete && (
+                                          <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }} onClick={(e) => e.stopPropagation()}>
+                                            <span style={{ fontSize: '12px', color: '#ef4444' }}>Confirmar exclusão?</span>
+                                            <button
+                                              className="btn btn-danger"
+                                              style={{ fontSize: '12px', padding: '2px 8px' }}
+                                              onClick={(e) => { e.stopPropagation(); handleDeleteAppointment(apt) }}
+                                            >
+                                              Sim
+                                            </button>
+                                            <button
+                                              className="btn btn-secondary"
+                                              style={{ fontSize: '12px', padding: '2px 8px' }}
+                                              onClick={(e) => { e.stopPropagation(); setConfirmDeleteAptId(null) }}
+                                            >
+                                              Não
+                                            </button>
+                                          </div>
+                                        )}
+                                      </div>
                                     </div>
                                     <div className="apt-consultor">
                                       💼 Consultor: {apt.consultorEmail}
