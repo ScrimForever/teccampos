@@ -1910,12 +1910,10 @@ function Dashboard() {
         localItems.push({ startDate: aptStart, endDate: beforeEnd, startHour: origStartHour, endHour: origEndHour, title: origTitle, description: origDescription, responsible: origResponsible, reservas: beforeReservas })
       }
 
-      // Dias editados — usa dados do formulário (title/hora novos)
-      for (const dia of editDaysPerDia) {
-        const diaReservas = editingReservas.filter(r => r.data === dia.date)
-        agendamentos.push(_entry(dia.date, dia.date, appointmentForm.startHour, appointmentForm.endHour, appointmentForm.title, appointmentForm.description || '', appointmentForm.responsible || '', diaReservas))
-        localItems.push({ startDate: dia.date, endDate: dia.date, startHour: appointmentForm.startHour, endHour: appointmentForm.endHour, title: appointmentForm.title, description: appointmentForm.description || '', responsible: appointmentForm.responsible || '', reservas: diaReservas })
-      }
+      // Range selecionado — salva como um único compromisso com os novos dados
+      const editRangeReservas = editingReservas.filter(r => r.data >= editStart && r.data <= editEnd)
+      agendamentos.push(_entry(editStart, editEnd, appointmentForm.startHour, appointmentForm.endHour, appointmentForm.title, appointmentForm.description || '', appointmentForm.responsible || '', editRangeReservas))
+      localItems.push({ startDate: editStart, endDate: editEnd, startHour: appointmentForm.startHour, endHour: appointmentForm.endHour, title: appointmentForm.title, description: appointmentForm.description || '', responsible: appointmentForm.responsible || '', reservas: editRangeReservas })
 
       // Range APÓS os dias editados — mantém dados originais
       if (editEnd < aptEnd) {
@@ -1952,7 +1950,7 @@ function Dashboard() {
         setHasChanges(true)
         _resetForm()
         setMessageModalType('success')
-        setMessageModalContent(`✅ Dias editados com sucesso!\n\n${editDaysPerDia.length} dia(s) alterado(s) em "${appointmentForm.title}"`)
+        setMessageModalContent(`✅ Período editado com sucesso!\n\n${editStart}${editEnd !== editStart ? ` até ${editEnd}` : ''}\n"${appointmentForm.title}"`)
         setShowMessageModal(true)
       } catch (error) {
         const statusCode = error.status || 'Erro desconhecido'
@@ -2811,12 +2809,10 @@ function Dashboard() {
                                   checked={editDayMode}
                                   onChange={() => setEditDayMode(true)}
                                 />
-                                Editar horário por dia
+                                Editar período selecionado
                                 {editDaysPerDia.length > 0 && (
                                   <span className="edit-day-hint">
-                                    {editDaysPerDia.length === 1
-                                      ? ` — ${editDaysPerDia[0].date}`
-                                      : ` — ${editDaysPerDia[0].date} até ${editDaysPerDia[editDaysPerDia.length - 1].date}`}
+                                    {` — ${editDaysPerDia[0].date}${editDaysPerDia.length > 1 ? ` até ${editDaysPerDia[editDaysPerDia.length - 1].date}` : ''}`}
                                   </span>
                                 )}
                               </label>
@@ -2866,13 +2862,6 @@ function Dashboard() {
                                   }
                                 }}
                               />
-                            </div>
-                            <div className="horarios-per-dia-list">
-                              {editDaysPerDia.map((dia) => (
-                                <div key={dia.date} className="horario-dia-row">
-                                  <span className="horario-dia-label">{dia.date}</span>
-                                </div>
-                              ))}
                             </div>
                           </div>
                         )}
