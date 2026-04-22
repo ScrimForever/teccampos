@@ -1857,7 +1857,7 @@ function Dashboard() {
       return
     }
 
-    // Modo edição por dia: DELETE range original + POST lote preservando before/after
+    // Modo edição de período selecionado: DELETE range original + POST apenas o período selecionado
     const isEditDayMode = editDayMode && editingAppointment?.agendaId && editDaysPerDia.length > 0 && !appointmentForm.isOpenAppointment
     if (isEditDayMode) {
       if (parseInt(appointmentForm.startHour) >= parseInt(appointmentForm.endHour)) {
@@ -1867,85 +1867,55 @@ function Dashboard() {
         return
       }
 
-      const aptStart = editingAppointment.startDate
-      const aptEnd = editingAppointment.endDate
-      const origStartHour = editingAppointment.startHour
-      const origEndHour = editingAppointment.endHour
-      const origTitle = editingAppointment.title
-      const origDescription = editingAppointment.description || ''
-      const origResponsible = editingAppointment.responsible || ''
       const editStart = editDaysPerDia[0].date
       const editEnd = editDaysPerDia[editDaysPerDia.length - 1].date
 
-      // Monta entrada do lote com título/descrição/responsável explícitos
-      const _entry = (startDate, endDate, startHour, endHour, titulo, descricao, responsavel, reservas = []) => ({
+      // Apenas o período selecionado — sem criar fragmentos before/after
+      const editRangeReservas = editingReservas.filter(r => r.data >= editStart && r.data <= editEnd)
+      const agendaPayloadEdit = {
         agenda_json: {
           timestamp: new Date().toISOString(),
           consultor: { email: user?.email, id: user?.id, nome: user?.first_name || 'N/A' },
           totalCompromissos: 1,
           compromissos: [{
             id: Date.now() + Math.random(),
-            titulo,
-            descricao,
-            responsavel,
-            dataInicio: startDate,
-            dataFim: endDate,
-            horaInicio: `${String(startHour).padStart(2, '0')}:00`,
-            horaFim: `${String(endHour).padStart(2, '0')}:00`,
+            titulo: appointmentForm.title,
+            descricao: appointmentForm.description || '',
+            responsavel: appointmentForm.responsible || '',
+            dataInicio: editStart,
+            dataFim: editEnd,
+            horaInicio: `${String(appointmentForm.startHour).padStart(2, '0')}:00`,
+            horaFim: `${String(appointmentForm.endHour).padStart(2, '0')}:00`,
             ehCompromisoAberto: false,
             consultorEmail: user?.email,
-            reservas,
+            reservas: editRangeReservas,
           }],
         }
-      })
-
-      const agendamentos = []
-      const localItems = []
-
-      // Range ANTES dos dias editados — mantém dados originais
-      if (aptStart < editStart) {
-        const beforeEnd = addDays(editStart, -1)
-        const beforeReservas = editingReservas.filter(r => r.data >= aptStart && r.data <= beforeEnd)
-        agendamentos.push(_entry(aptStart, beforeEnd, origStartHour, origEndHour, origTitle, origDescription, origResponsible, beforeReservas))
-        localItems.push({ startDate: aptStart, endDate: beforeEnd, startHour: origStartHour, endHour: origEndHour, title: origTitle, description: origDescription, responsible: origResponsible, reservas: beforeReservas })
-      }
-
-      // Range selecionado — salva como um único compromisso com os novos dados
-      const editRangeReservas = editingReservas.filter(r => r.data >= editStart && r.data <= editEnd)
-      agendamentos.push(_entry(editStart, editEnd, appointmentForm.startHour, appointmentForm.endHour, appointmentForm.title, appointmentForm.description || '', appointmentForm.responsible || '', editRangeReservas))
-      localItems.push({ startDate: editStart, endDate: editEnd, startHour: appointmentForm.startHour, endHour: appointmentForm.endHour, title: appointmentForm.title, description: appointmentForm.description || '', responsible: appointmentForm.responsible || '', reservas: editRangeReservas })
-
-      // Range APÓS os dias editados — mantém dados originais
-      if (editEnd < aptEnd) {
-        const afterStart = addDays(editEnd, 1)
-        const afterReservas = editingReservas.filter(r => r.data >= afterStart && r.data <= aptEnd)
-        agendamentos.push(_entry(afterStart, aptEnd, origStartHour, origEndHour, origTitle, origDescription, origResponsible, afterReservas))
-        localItems.push({ startDate: afterStart, endDate: aptEnd, startHour: origStartHour, endHour: origEndHour, title: origTitle, description: origDescription, responsible: origResponsible, reservas: afterReservas })
       }
 
       try {
         await api.delete(`/agenda/agendamento/${editingAppointment.agendaId}`)
-        const responses = await api.post('/agenda/agendamento/lote', { agendamentos })
-        const responseList = responses.data || []
+        const response = await api.post('/agenda/agendamento', agendaPayloadEdit)
 
-        const created = localItems.map((item, idx) => ({
-          id: responseList[idx]?.id || Date.now() + idx,
-          agendaId: responseList[idx]?.id,
-          startDate: item.startDate,
-          endDate: item.endDate,
-          startHour: item.startHour,
-          endHour: item.endHour,
+        const savedAgendaId = response.data?.id
+        const createdAppointment = {
+          id: savedAgendaId || Date.now(),
+          agendaId: savedAgendaId,
+          startDate: editStart,
+          endDate: editEnd,
+          startHour: appointmentForm.startHour,
+          endHour: appointmentForm.endHour,
           isOpenAppointment: false,
           consultorEmail: user?.email,
-          reservas: item.reservas,
-          title: item.title,
-          description: item.description,
-          responsible: item.responsible,
-        }))
+          reservas: editRangeReservas,
+          title: appointmentForm.title,
+          description: appointmentForm.description || '',
+          responsible: appointmentForm.responsible || '',
+        }
 
         setAppointments(prev => [
           ...prev.filter(a => a.agendaId !== editingAppointment.agendaId),
-          ...created,
+          createdAppointment,
         ])
         setHasChanges(true)
         _resetForm()
