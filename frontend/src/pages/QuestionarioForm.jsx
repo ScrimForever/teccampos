@@ -692,9 +692,9 @@ function QuestionarioForm() {
           try {
             await api.put('/status', {
               user_email: user?.email || '',
-              status_type: 'completed'
+              status_type: 'waiting_approve'
             })
-            console.log('✅ Status updated to completed!')
+            console.log('✅ Status updated to waiting_approve!')
           } catch (statusError) {
             console.error('⚠️ Warning: Status update failed:', statusError)
           }

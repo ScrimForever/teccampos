@@ -5,6 +5,7 @@ import Login from './pages/Login'
 import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
 import QuestionarioForm from './pages/QuestionarioForm'
+import AguardandoAprovacao from './pages/AguardandoAprovacao'
 import ProtectedRoute from './components/ProtectedRoute'
 
 function AppRoutes() {
@@ -49,6 +50,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <Dashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/aguardando-aprovacao"
+        element={
+          <ProtectedRoute>
+            <AguardandoAprovacao />
           </ProtectedRoute>
         }
       />

@@ -38,7 +38,9 @@ function Login() {
       const statusResponse = await api.get('/status')
       const statusType = statusResponse.data?.status_type
 
-      if (statusType === 'completed') {
+      if (statusType === 'waiting_approve') {
+        navigate('/aguardando-aprovacao', { replace: true })
+      } else if (statusType === 'completed') {
         navigate('/dashboard', { replace: true })
       } else {
         navigate('/questionario-form', { replace: true })
