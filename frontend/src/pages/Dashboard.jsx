@@ -1831,6 +1831,7 @@ function Dashboard() {
         const responses = await api.post('/agenda/agendamento/lote', lotePayload)
         const responseList = responses.data || []
         const created = horariosPerDia.map((dia, idx) => ({
+          ...appointmentForm,
           id: responseList[idx]?.id || Date.now() + idx,
           agendaId: responseList[idx]?.id,
           startDate: dia.date,
@@ -1840,7 +1841,6 @@ function Dashboard() {
           isOpenAppointment: false,
           consultorEmail: user?.email,
           reservas: [],
-          ...appointmentForm,
         }))
         setAppointments(prev => [...prev, ...created])
         setHasChanges(true)
