@@ -2,3 +2,4 @@ __pycache__/
 *.pyc
 frontend/dist/
 frontend/public/logo.png
+*.ps1

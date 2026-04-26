@@ -75,3 +75,16 @@ class UserStatusRepository:
         except Exception as e:
             return JSONResponse(content={"status": "error"}, status_code=500)
 
+
+    async def get_all_status(self, user: User, db_session: AsyncSession):
+        if user.is_consultant:
+            logger.info(f"Getting all status for users: {user.email}")
+            try:
+                stmt = select(UserStatus)
+                response_db = await db_session.execute(stmt)
+                return response_db.scalars().all()
+            except Exception as e:
+                return JSONResponse(content={"status": "error"}, status_code=500)
+        else:
+            return JSONResponse(content={"message": "Not consultant"}, status_code=403)
+
