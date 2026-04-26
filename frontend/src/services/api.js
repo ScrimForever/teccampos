@@ -4,6 +4,7 @@ class ApiService {
   constructor() {
     this.baseUrl = API_BASE_URL
     this.token = localStorage.getItem('bearerToken')
+    this.onUnauthorized = null
   }
 
   setToken(token) {
@@ -42,6 +43,10 @@ class ApiService {
 
       if (response.status === 401) {
         this.setToken(null)
+        if (this.onUnauthorized) {
+          this.onUnauthorized()
+          return new Promise(() => {})
+        }
         throw new Error('Unauthorized. Please login again.')
       }
 

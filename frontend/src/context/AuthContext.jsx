@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { api } from '../services/api'
 
 const AuthContext = createContext(null)
@@ -7,6 +8,18 @@ export function AuthProvider({ children }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [user, setUser] = useState(null)
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    api.onUnauthorized = () => {
+      setIsAuthenticated(false)
+      setUser(null)
+      navigate('/login', { replace: true })
+    }
+    return () => {
+      api.onUnauthorized = null
+    }
+  }, [navigate])
 
   useEffect(() => {
     const token = api.getToken()
