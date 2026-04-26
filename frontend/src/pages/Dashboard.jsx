@@ -394,24 +394,30 @@ function Dashboard() {
       const fetchPlans = async () => {
         setLoadingPendingPlans(true)
         try {
-          let endpoint = '/plano/aprovar'
+          if (currentSubmenu === 'gerenciar') {
+            const [questionariosRes, statusRes] = await Promise.all([
+              api.get('/questionario/consultant'),
+              api.get('/status/all'),
+            ])
 
-          if (currentSubmenu === 'aprovados') {
-            endpoint = '/plano/aprovados'
-          } else if (currentSubmenu === 'rejeitados') {
-            endpoint = '/plano/rejeitados'
-          }
+            const questionarios = Array.isArray(questionariosRes.data) ? questionariosRes.data : []
+            const statuses = Array.isArray(statusRes.data) ? statusRes.data : []
 
-          const response = await api.get(endpoint)
-          console.log('📋 Planos - Full response:', response)
-          console.log('📋 Planos - response.data:', response.data)
-          console.log('📋 Planos - type:', typeof response.data)
-          console.log('📋 Planos - is array:', Array.isArray(response.data))
-          if (Array.isArray(response.data) && response.data.length > 0) {
-            console.log('📋 Primeiro item:', JSON.stringify(response.data[0], null, 2))
-            console.log('📋 Todas as IDs dos planos:', response.data.map((p, idx) => ({ index: idx, id: p.id, empresa: p.questionario?.formData?.nomeNegocio })))
+            const waitingEmails = new Set(
+              statuses
+                .filter(s => s.status_type === 'waiting_approve')
+                .map(s => s.user_email)
+            )
+
+            const filtered = questionarios.filter(q => waitingEmails.has(q.usuario_associado))
+            setPendingPlans(filtered)
+          } else {
+            let endpoint = '/plano/aprovados'
+            if (currentSubmenu === 'rejeitados') endpoint = '/plano/rejeitados'
+
+            const response = await api.get(endpoint)
+            setPendingPlans(Array.isArray(response.data) ? response.data : [response.data])
           }
-          setPendingPlans(Array.isArray(response.data) ? response.data : [response.data])
         } catch (err) {
           console.error('Erro ao carregar planos:', err)
           setPendingPlans([])
@@ -420,13 +426,9 @@ function Dashboard() {
         }
       }
 
-      // Fetch immediately
       fetchPlans()
 
-      // Set up interval to refresh every 5 minutes (300000 ms)
       const intervalId = setInterval(fetchPlans, 300000)
-
-      // Clean up interval when component unmounts or section changes
       return () => clearInterval(intervalId)
     }
   }, [currentSection, currentSubmenu, isConsultor])
@@ -4851,13 +4853,13 @@ function Dashboard() {
                         <tbody>
                           {pendingPlans.map((plan) => (
                             <tr key={plan.id}>
-                              <td>{plan.questionario?.formData?.nomeNegocio || 'N/A'}</td>
-                              <td>{plan.questionario?.formData?.nomeProponente || 'N/A'}</td>
-                              <td>{plan.email || 'N/A'}</td>
+                              <td>{plan.nome_negocio || plan.questionario?.formData?.nomeNegocio || 'N/A'}</td>
+                              <td>{plan.nome_proponente || plan.questionario?.formData?.nomeProponente || 'N/A'}</td>
+                              <td>{plan.usuario_associado || plan.email || 'N/A'}</td>
                               <td>
                                 <button className="action-btn view-btn" onClick={() => handleViewPlan(plan)}>📄 Visualizar</button>
                               </td>
-                              <td><span className="status-badge status-pending">⏳ Pendente</span></td>
+                              <td><span className="status-badge status-pending">⏳ Aguardando Aprovação</span></td>
                               <td>
                                 <button className="action-btn approve-btn" onClick={() => handleApprove(plan)}>Aprovar</button>
                                 <button className="action-btn reject-btn" onClick={() => handleReject(plan)}>Rejeitar</button>

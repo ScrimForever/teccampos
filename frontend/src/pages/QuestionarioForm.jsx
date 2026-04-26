@@ -700,9 +700,7 @@ function QuestionarioForm() {
           }
 
           setIsLoading(false)
-
-          // Redirect to dashboard
-          navigate('/dashboard')
+          navigate('/aguardando-aprovacao', { replace: true })
         }
       } catch (error) {
         console.error('❌ Error submitting form:', error)
