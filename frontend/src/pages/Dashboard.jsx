@@ -2985,9 +2985,12 @@ function Dashboard() {
                                       <select
                                         className="hour-select"
                                         value={dia.startHour}
-                                        onChange={(e) => setHorariosPerDia(prev =>
-                                          prev.map((d, i) => i === idx ? { ...d, startHour: e.target.value } : d)
-                                        )}
+                                        onChange={(e) => {
+                                          const value = e.target.value
+                                          setHorariosPerDia(prev =>
+                                            prev.map((d, i) => i === idx ? { ...d, startHour: value } : d)
+                                          )
+                                        }}
                                       >
                                         {Array.from({ length: 24 }, (_, i) => {
                                           const hour = String(i).padStart(2, '0')
@@ -3001,9 +3004,12 @@ function Dashboard() {
                                       <select
                                         className="hour-select"
                                         value={dia.endHour}
-                                        onChange={(e) => setHorariosPerDia(prev =>
-                                          prev.map((d, i) => i === idx ? { ...d, endHour: e.target.value } : d)
-                                        )}
+                                        onChange={(e) => {
+                                          const value = e.target.value
+                                          setHorariosPerDia(prev =>
+                                            prev.map((d, i) => i === idx ? { ...d, endHour: value } : d)
+                                          )
+                                        }}
                                       >
                                         {Array.from({ length: 24 }, (_, i) => {
                                           const hour = String(i).padStart(2, '0')
