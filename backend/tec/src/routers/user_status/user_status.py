@@ -22,3 +22,4 @@ async def change_user_status(user_status: UserStatusInput, db: Annotated[AsyncSe
 @user_status_router.get("/all")
 async def check_user_status(db: Annotated[AsyncSession, Depends(get_async_session)], user: User = Depends(current_active_user)):
     return await UserStatusRepository().get_all_status(user, db_session=db)
+
