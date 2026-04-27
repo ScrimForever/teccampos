@@ -83,6 +83,33 @@ function QuestionarioForm() {
 
   // Load team members from API as soon as equipeId is available
   useEffect(() => {
+    if (!planejamentoMercadoId || !isViewOnly) return
+    const fetchPlanejamento = async () => {
+      try {
+        const response = await api.get(`/planejamento/${planejamentoMercadoId}`)
+        if (response.data) {
+          const p = response.data
+          setFormData(prev => ({
+            ...prev,
+            analiseFornecedores: p.fornecedores || prev.analiseFornecedores,
+            analiseCompetidores: p.concorrentes || prev.analiseCompetidores,
+            planejamentoMercado: p.analise_acao || prev.planejamentoMercado
+          }))
+          if (p.upload_file_path) {
+            setUploadedFiles(prev =>
+              prev.length > 0 ? prev : [new File([new Blob()], p.upload_file_path, { type: 'application/octet-stream' })]
+            )
+          }
+          console.log('✔️ Planejamento data loaded for view mode:', p)
+        }
+      } catch (error) {
+        console.error('❌ Error loading planejamento data:', error)
+      }
+    }
+    fetchPlanejamento()
+  }, [planejamentoMercadoId, isViewOnly])
+
+  useEffect(() => {
     const fetchTeamMembers = async () => {
       if (!equipeId) return
       try {
@@ -1375,8 +1402,7 @@ function QuestionarioForm() {
                           name={`rating-${currentStep}`}
                           value={item.value}
                           checked={notes[currentStep]?.rating === item.value}
-                          onChange={(e) => setNotes({ ...notes, [currentStep]: { ...notes[currentStep], rating: item.value } })}
-                          disabled={isViewOnly}
+                          onChange={() => setNotes({ ...notes, [currentStep]: { ...notes[currentStep], rating: item.value } })}
                         />
                         <span className="rating-label-text">{item.label}</span>
                       </label>
@@ -1389,7 +1415,6 @@ function QuestionarioForm() {
                   placeholder="Adicione suas notas e observações sobre este passo..."
                   className="nota-textarea"
                   rows="5"
-                  disabled={isViewOnly}
                 />
                 {notes[currentStep]?.consultorEmail && (
                   <div className="nota-footer">

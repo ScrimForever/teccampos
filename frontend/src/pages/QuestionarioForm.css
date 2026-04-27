@@ -868,6 +868,7 @@
 }
 
 .rating-label {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -883,13 +884,6 @@
   background-color: rgba(59, 130, 246, 0.1);
   border-color: #3b82f6;
   transform: scale(1.05);
-}
-
-.rating-label {
-  position: relative;
-  cursor: pointer;
-  user-select: none;
-  display: inline-block;
 }
 
 .rating-label input[type="radio"] {
