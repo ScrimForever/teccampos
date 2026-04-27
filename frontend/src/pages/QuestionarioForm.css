@@ -862,8 +862,8 @@
 .rating-options {
   display: flex;
   justify-content: center;
-  align-items: center;
-  gap: 16px;
+  align-items: flex-start;
+  gap: 24px;
   flex-wrap: wrap;
 }
 
@@ -872,11 +872,13 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
+  gap: 8px;
+  min-width: 72px;
   cursor: pointer;
   transition: all 0.2s ease;
-  padding: 8px 12px;
-  border-radius: 8px;
+  padding: 12px 10px;
+  border-radius: 10px;
   border: 2px solid transparent;
   user-select: none;
 }
