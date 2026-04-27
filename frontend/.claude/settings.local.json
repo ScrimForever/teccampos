@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(python:*)",
-      "Bash(npx --no-install vite build)"
+      "Bash(npx --no-install vite build)",
+      "Bash(xargs grep *)",
+      "Bash(xargs wc *)"
     ]
   },
   "enabledPlugins": {

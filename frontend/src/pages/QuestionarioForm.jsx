@@ -237,20 +237,60 @@ function QuestionarioForm() {
       // Try multiple paths for questionario data
       let questionarioData = plan.questionario_json || plan.questionario || plan
 
-      // Extract form data from questionario
-      if (questionarioData?.formData) {
+      // Extract form data: prefer pre-serialized formData, otherwise map snake_case API fields
+      const hasSerializedFormData = !!questionarioData?.formData
+      if (hasSerializedFormData) {
         setFormData(prev => ({
           ...prev,
           ...questionarioData.formData
         }))
         console.log('✔️ Form data loaded from plan:', questionarioData.formData)
+      } else {
+        const mappedData = {
+          nomeProponente: questionarioData.nome_proponente || '',
+          nomeNegocio: questionarioData.nome_negocio || '',
+          setorAtuacao: questionarioData.setor_atuacao || '',
+          cnpj: questionarioData.cnpj || '',
+          businessModelCanvas: questionarioData.business_canvas || '',
+          executiveSummary: questionarioData.sumario_executivo || '',
+          produtoServico: questionarioData.planejamento_produto || questionarioData.produto_servico || '',
+          analiseFornecedores: questionarioData.planejamento_mercado_rel?.fornecedores || questionarioData.fornecedores || questionarioData.analise_fornecedores || '',
+          analiseCompetidores: questionarioData.planejamento_mercado_rel?.concorrentes || questionarioData.concorrentes || questionarioData.analise_competidores || '',
+          planejamentoMercado: questionarioData.planejamento_mercado_rel?.analise_acao || questionarioData.analise_acao || '',
+          estrategiaMarketing: questionarioData.planejamento_marketing || questionarioData.estrategia_marketing || '',
+          planejamentoEstrutura: questionarioData.planejamento_estrutura || '',
+          planejamentoFinanceiro: questionarioData.planejamento_financeiro || ''
+        }
+        if (Object.values(mappedData).some(v => v !== '')) {
+          setFormData(prev => ({ ...prev, ...mappedData }))
+          console.log('✔️ Form data mapped from snake_case fields:', mappedData)
+        }
+
+        // Set IDs so related data loads via existing effects (only for raw API objects)
+        if (!plan.questionario_id && !plan.questionario?.id && questionarioData.id) {
+          setQuestionarioId(questionarioData.id)
+        }
+        if (questionarioData.equipe) {
+          setEquipeId(questionarioData.equipe)
+          console.log('✔️ Equipe ID set for view mode:', questionarioData.equipe)
+        }
+        if (questionarioData.planejamento_mercado) {
+          setPlanejamentoMercadoId(questionarioData.planejamento_mercado)
+        }
+
+        // Load file from path (raw API path)
+        const filePath = questionarioData.planejamento_mercado_rel?.upload_file_path || questionarioData.upload_file_path
+        if (filePath) {
+          setUploadedFiles([new File([new Blob()], filePath, { type: 'application/octet-stream' })])
+          console.log('✔️ File loaded from path:', filePath)
+        }
       }
 
-      // Load team members if present
+      // Load team members if present in pre-serialized format
       if (questionarioData?.teamMembers && Array.isArray(questionarioData.teamMembers)) {
         const membersWithIds = questionarioData.teamMembers.map(member => ({
           nome: member.nome || '',
-          formacaoAcademica: member.formacaoAcademica || member.formacao || '',
+          formacaoAcademica: member.formacaoAcademica || member.formacao || member.formacao_academica || '',
           experiencia: member.experiencia || '',
           email: member.email || '',
           id: member.id || Date.now() + Math.random()
@@ -259,7 +299,7 @@ function QuestionarioForm() {
         console.log('✔️ Team members loaded:', membersWithIds)
       }
 
-      // Load uploaded files if present
+      // Load uploaded files from pre-serialized format
       if (questionarioData?.uploadedFiles && Array.isArray(questionarioData.uploadedFiles)) {
         const filesWithObjects = questionarioData.uploadedFiles.map(fileData =>
           new File([new Blob()], fileData.name || 'file', { type: fileData.type || 'application/octet-stream' })
