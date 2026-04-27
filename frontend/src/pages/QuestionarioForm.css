@@ -163,6 +163,24 @@
   box-shadow: 0 6px 16px rgba(220, 53, 69, 0.5);
 }
 
+.step-button.needs-attention {
+  border-color: #f97316;
+  color: #f97316;
+}
+
+.step-button.needs-attention:hover {
+  background: #f97316;
+  color: white;
+  border-color: #f97316;
+}
+
+.step-button.active.needs-attention {
+  background: #f97316;
+  border-color: #f97316;
+  color: white;
+  box-shadow: 0 6px 16px rgba(249, 115, 22, 0.5);
+}
+
 .step-button.locked {
   background: #e9ecef;
   border-color: #ced4da;

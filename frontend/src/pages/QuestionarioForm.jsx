@@ -480,6 +480,13 @@ function QuestionarioForm() {
     }
   }
 
+  const isStepNeedsAttention = (stepNumber) => {
+    if (!isViewOnly) return false
+    const hasContent = isStepComplete(stepNumber)
+    const hasRating = !isConsultor || !!notes[stepNumber]?.rating
+    return !hasContent || !hasRating
+  }
+
   // Helper function to map rating number to text label
   const getRatingLabel = (ratingValue) => {
     const ratingLabels = {
@@ -831,7 +838,7 @@ function QuestionarioForm() {
           {steps.map((step) => (
             <button
               key={step.number}
-              className={`step-button ${currentStep === step.number ? 'active' : ''} ${isStepComplete(step.number) ? 'complete' : 'incomplete'} ${!isStepAccessible(step.number) ? 'locked' : ''}`}
+              className={`step-button ${currentStep === step.number ? 'active' : ''} ${isViewOnly ? (isStepNeedsAttention(step.number) ? 'needs-attention' : 'complete') : (isStepComplete(step.number) ? 'complete' : 'incomplete')} ${!isStepAccessible(step.number) ? 'locked' : ''}`}
               onClick={() => handleStepClick(step.number)}
               disabled={!isStepAccessible(step.number)}
               title={!isStepAccessible(step.number) ? `Complete a etapa ${step.number - 1} antes` : step.title}
