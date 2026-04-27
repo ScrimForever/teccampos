@@ -870,8 +870,9 @@
 .rating-label {
   position: relative;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   cursor: pointer;
   transition: all 0.2s ease;
   padding: 8px 12px;
@@ -919,7 +920,6 @@
   font-size: 13px;
   font-weight: 600;
   color: #0c4a6e;
-  margin-top: 10px;
   text-align: center;
   white-space: nowrap;
 }
